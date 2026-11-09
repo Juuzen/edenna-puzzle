@@ -50,10 +50,15 @@ basta cambiargli `key`. Props principali:
 | `revealErrors` | `true` | Fa lampeggiare i simboli non soddisfatti |
 | `lockOnSolve` | `true` | Blocca il puzzle dopo la soluzione |
 | `disabled` | `false` | |
+| `captureRadius` | `0.25` | Distanza (in celle) dalle linee entro cui il percorso segue il puntatore; al centro delle celle viene ignorato |
+| `cancelFadeMs` | `400` | Durata della dissolvenza di un percorso abbandonato |
 | `theme` | `ep-theme-edenna` | Classe del tema |
 
 Comandi: clic sul cerchio di partenza, il percorso segue il puntatore, clic sull'uscita per confermare
-(oppure trascina e rilascia; su touch si trascina). Clic destro / Esc annulla.
+(oppure trascina e rilascia; su touch si trascina). Clic destro / Esc annulla, e un percorso
+abbandonato svanisce con una breve dissolvenza. Mentre si traccia, un cerchietto mostra la
+posizione del puntatore (e il suo riflesso nei puzzle simmetrici); si attenua quando il puntatore
+è troppo lontano dalle linee per essere seguito.
 Da tastiera: Invio per partire, frecce o WASD per muovere, Invio sull'uscita per confermare.
 
 Per validare soluzioni lato server o in Electron senza React:

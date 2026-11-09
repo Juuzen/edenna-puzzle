@@ -13,7 +13,7 @@ import {
 import { CellSymbol, Hexagon, LINE, MARGIN, START_R, U, maxPolyominoSize } from './Symbols';
 import { EXIT_LENGTH, type TraceState, headPosition, mirrorTrace } from './tracing';
 
-export type BoardStatus = 'idle' | 'tracing' | 'success' | 'failure';
+export type BoardStatus = 'idle' | 'tracing' | 'success' | 'failure' | 'cancelled';
 
 export interface PuzzleBoardProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
   puzzle: Puzzle;
@@ -30,6 +30,8 @@ export interface PuzzleBoardProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
    * indicatore semitrasparente, e il suo riflesso nei puzzle simmetrici.
    */
   pointer?: Coord | null;
+  /** Il puntatore è troppo lontano dalla griglia: l'indicatore si attenua. */
+  pointerIdle?: boolean;
   /** Testo alternativo per screen reader. */
   label?: string;
 }
@@ -50,7 +52,7 @@ export function clientToGrid(svg: SVGSVGElement, clientX: number, clientY: numbe
  * visualizzatore sia dall'editor.
  */
 export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function PuzzleBoard(
-  { puzzle, trace, paths, status = 'idle', errors, eliminated, overlay, pointer: cursor, label, className, ...rest },
+  { puzzle, trace, paths, status = 'idle', errors, eliminated, overlay, pointer: cursor, pointerIdle, label, className, ...rest },
   ref,
 ) {
   const idx = indexPuzzle(puzzle);
@@ -193,7 +195,7 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
           })}
       </g>
       {cursor && (
-        <g className="ep-cursors" pointerEvents="none">
+        <g className={`ep-cursors${pointerIdle ? ' ep-cursors--idle' : ''}`} pointerEvents="none">
           {puzzle.symmetry !== 'none' && (
             <circle
               className="ep-cursor ep-cursor--mirror"

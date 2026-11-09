@@ -11,7 +11,9 @@ import {
 } from '../engine';
 import { PuzzleBoard, clientToGrid, type BoardStatus } from './PuzzleBoard';
 import {
+  CAPTURE_RADIUS,
   type TraceState,
+  distanceToGrid,
   isTraceComplete,
   moveTrace,
   startTrace,
@@ -35,6 +37,13 @@ export interface PuzzlePlayerProps {
   disabled?: boolean;
   /** Durata (ms) dell'evidenziazione degli errori. Default: 1600. */
   failureDisplayMs?: number;
+  /**
+   * Distanza massima (in celle) fra puntatore e linee della griglia perché il
+   * percorso lo segua. Default: 0.25 (al centro delle celle il puntatore è ignorato).
+   */
+  captureRadius?: number;
+  /** Durata (ms) della dissolvenza quando un percorso viene abbandonato. Default: 400. */
+  cancelFadeMs?: number;
   /** Tema: classe CSS applicata (vedi theme.css). Default: "ep-theme-edenna". */
   theme?: string;
   className?: string;
@@ -63,6 +72,8 @@ export function PuzzlePlayer({
   lockOnSolve = true,
   disabled = false,
   failureDisplayMs = 1600,
+  captureRadius = CAPTURE_RADIUS,
+  cancelFadeMs = 400,
   theme = 'ep-theme-edenna',
   className,
   style,
@@ -76,6 +87,8 @@ export function PuzzlePlayer({
   const [finalPaths, setFinalPaths] = useState<Path[] | null>(null);
   /** Posizione del puntatore (coordinate di griglia) mentre si traccia. */
   const [cursor, setCursor] = useState<Coord | null>(null);
+  /** Percorso abbandonato che sta svanendo. */
+  const [fading, setFading] = useState<TraceState | null>(null);
   const traceRef = useRef<TraceState | null>(null);
   const dragRef = useRef<{ pointerId: number; moved: boolean; mode: 'drag' | 'follow' } | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -89,6 +102,7 @@ export function PuzzlePlayer({
     window.clearTimeout(timer.current);
     update(null);
     setCursor(null);
+    setFading(null);
     dragRef.current = null;
     setStatus('idle');
     setErrors([]);
@@ -104,6 +118,7 @@ export function PuzzlePlayer({
 
   const begin = (t: TraceState) => {
     window.clearTimeout(timer.current);
+    setFading(null);
     setErrors([]);
     setEliminated([]);
     setFinalPaths(null);
@@ -112,11 +127,24 @@ export function PuzzlePlayer({
     onStart?.();
   };
 
+  /** Abbandona il percorso: svanisce con una breve dissolvenza. */
   const cancel = () => {
+    const t = traceRef.current;
     dragRef.current = null;
     setCursor(null);
     update(null);
-    setStatus('idle');
+    window.clearTimeout(timer.current);
+    if (t && (t.path.length > 1 || t.t > 0)) {
+      setFading(t);
+      setStatus('cancelled');
+      timer.current = window.setTimeout(() => {
+        setFading(null);
+        setStatus('idle');
+      }, cancelFadeMs);
+    } else {
+      setFading(null);
+      setStatus('idle');
+    }
   };
 
   /** Rilascio/conferma: convalida se il serpente è sull'uscita. */
@@ -181,7 +209,7 @@ export function PuzzlePlayer({
     if (!t || !svgRef.current) return;
     const g = clientToGrid(svgRef.current, e.clientX, e.clientY);
     setCursor(g);
-    const next = moveTrace(idx, t, g);
+    const next = moveTrace(idx, t, g, captureRadius);
     if (dragRef.current && next.path.length + next.t > 1.3) dragRef.current.moved = true;
     update(next);
   };
@@ -237,12 +265,13 @@ export function PuzzlePlayer({
       <PuzzleBoard
         ref={svgRef}
         puzzle={puzzle}
-        trace={trace}
+        trace={trace ?? fading}
         paths={finalPaths}
         status={status}
         errors={errors}
         eliminated={eliminated}
         pointer={trace ? cursor : null}
+        pointerIdle={!!cursor && distanceToGrid(puzzle, cursor) > captureRadius}
         tabIndex={disabled ? -1 : 0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

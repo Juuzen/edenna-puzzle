@@ -100,6 +100,25 @@ function reach(idx: PuzzleIndex, s: TraceState, from: Coord, dir: Direction): nu
 }
 
 const dot = (a: Coord, b: Coord) => a.x * b.x + a.y * b.y;
+
+/**
+ * Distanza massima (in celle) fra il puntatore e una linea della griglia
+ * perché il percorso lo segua. Oltre questa soglia, per esempio al centro di
+ * una cella, il puntatore viene ignorato e la testa resta dov'è.
+ */
+export const CAPTURE_RADIUS = 0.25;
+
+/** Distanza del puntatore dalla linea della griglia più vicina (uscite comprese). */
+export function distanceToGrid(p: { width: number; height: number }, c: Coord): number {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const e = EXIT_LENGTH;
+  const yr = clamp(Math.round(c.y), 0, p.height);
+  const dh = Math.hypot(c.x - clamp(c.x, -e, p.width + e), c.y - yr);
+  const xr = clamp(Math.round(c.x), 0, p.width);
+  const dv = Math.hypot(c.x - xr, c.y - clamp(c.y, -e, p.height + e));
+  return Math.min(dh, dv);
+}
+
 const ALL_DIRS = Object.keys(DIRECTIONS) as Direction[];
 const OPPOSITE: Record<Direction, Direction> = { up: 'down', down: 'up', left: 'right', right: 'left' };
 
@@ -131,8 +150,17 @@ interface Candidate {
  * ai vertici sono quindi continue: la testa passa per l'incrocio e prosegue
  * senza scatti. Il ciclo si ripete finché la testa cambia vertice, così
  * anche i movimenti veloci vengono seguiti.
+ *
+ * Se il puntatore è più lontano di `capture` da ogni linea della griglia
+ * (per esempio al centro di una cella) lo stato non cambia.
  */
-export function moveTrace(idx: PuzzleIndex, state: TraceState, target: Coord): TraceState {
+export function moveTrace(
+  idx: PuzzleIndex,
+  state: TraceState,
+  target: Coord,
+  capture: number = CAPTURE_RADIUS,
+): TraceState {
+  if (distanceToGrid(idx.puzzle, target) > capture) return state;
   let s: TraceState = { path: [...state.path], dir: state.dir, t: state.t };
 
   const evalSeg = (base: Coord, d: Direction, max: number) => {

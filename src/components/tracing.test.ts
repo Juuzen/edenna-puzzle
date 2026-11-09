@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPuzzle, indexPuzzle, setSymmetry, type Coord } from '../engine';
-import { headPosition, moveTrace, startTrace, type TraceState } from './tracing';
+import { CAPTURE_RADIUS, distanceToGrid, headPosition, moveTrace, startTrace, type TraceState } from './tracing';
 
 /** Simula il puntatore lungo una serie di punti, a piccoli passi. */
 function drive(idx: ReturnType<typeof indexPuzzle>, start: Coord, waypoints: Coord[], step = 0.02) {
@@ -61,7 +61,7 @@ describe('tracciamento con il puntatore', () => {
     const heads: Coord[] = [];
     for (let i = 0; i < 40; i++) {
       const e = i % 2 ? 0.01 : -0.01;
-      s = moveTrace(idx, s, { x: 1.3 + e, y: 2.7 + e });
+      s = moveTrace(idx, s, { x: 1.18 + e, y: 2.82 + e });
       heads.push(headPosition(s));
     }
     const distinct = new Set(heads.slice(5).map((h) => `${h.x.toFixed(3)},${h.y.toFixed(3)}`));
@@ -88,5 +88,25 @@ describe('tracciamento con il puntatore', () => {
     const r = drive(indexPuzzle(p), { x: 0, y: 4 }, [{ x: 0, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 2 }]);
     expect(r.maxJump).toBeLessThan(0.15);
     expect(headPosition(r.s)).toEqual({ x: 1, y: 2 });
+  });
+
+  it('al centro di una cella il puntatore viene ignorato', () => {
+    const s = drive(idx, { x: 0, y: 4 }, [{ x: 0, y: 3.5 }]).s;
+    const before = headPosition(s);
+    for (const p of [{ x: 0.5, y: 3.5 }, { x: 0.45, y: 3.4 }, { x: 0.6, y: 3.6 }, { x: 1.5, y: 2.5 }]) {
+      expect(distanceToGrid(idx.puzzle, p)).toBeGreaterThan(CAPTURE_RADIUS);
+      expect(headPosition(moveTrace(idx, s, p))).toEqual(before);
+    }
+  });
+
+  it('attraversare una cella in diagonale: la testa aspetta e riparte sulla linea', () => {
+    // dal lato sinistro della cella in basso a sinistra al suo angolo opposto
+    const r = drive(idx, { x: 0, y: 4 }, [{ x: 0, y: 3.5 }, { x: 0.5, y: 3.5 }, { x: 0.9, y: 3.05 }, { x: 1, y: 3 }]);
+    expect(headPosition(r.s)).toEqual({ x: 1, y: 3 });
+    expect(r.s.path.map((c) => `${c.x},${c.y}`)).toEqual(['0,4', '0,3', '1,3']);
+  });
+
+  it('il percorso segue ancora il puntatore vicino all’uscita', () => {
+    expect(distanceToGrid(idx.puzzle, { x: 4.18, y: 0.05 })).toBeLessThan(CAPTURE_RADIUS);
   });
 });

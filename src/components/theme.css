@@ -148,6 +148,14 @@
   animation: ep-fade 1.6s ease-in forwards;
 }
 
+.ep-board--cancelled .ep-path {
+  animation: ep-vanish 0.4s ease-out forwards;
+}
+@keyframes ep-vanish {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 @keyframes ep-solved {
   0% { filter: drop-shadow(0 0 0 var(--ep-success-glow)); }
   40% { filter: drop-shadow(0 0 22px var(--ep-success-glow)); }
@@ -174,6 +182,15 @@
   stroke-dasharray: 6 5;
 }
 
+.ep-cursor {
+  transition: fill-opacity 0.15s, stroke-opacity 0.15s;
+}
+/* Puntatore fuori dalla zona di aggancio (es. centro di una cella). */
+.ep-cursors--idle .ep-cursor {
+  fill-opacity: 0.06;
+  stroke-opacity: 0.3;
+}
+
 /* --------------------------------------------------------------- symbols */
 
 .ep-sym__halo {
@@ -195,5 +212,6 @@
 @media (prefers-reduced-motion: reduce) {
   .ep-sym--error .ep-sym__halo { animation: none; opacity: 0.45; }
   .ep-board--success .ep-path,
-  .ep-board--failure .ep-path { animation: none; }
+  .ep-board--failure .ep-path,
+  .ep-board--cancelled .ep-path { animation: none; }
 }
