@@ -1,0 +1,29 @@
+{
+  "format": "edenna-puzzle",
+  "version": 1,
+  "id": "betelgeuse-01",
+  "title": "Coppie",
+  "description": "Ogni stella vuole esattamente un compagno del suo colore.",
+  "width": 4,
+  "height": 4,
+  "symmetry": "none",
+  "points": [
+    {"x":4,"y":0,"type":"end"},
+    {"x":3,"y":3,"type":"hexagon"},
+    {"x":0,"y":4,"type":"start"}
+  ],
+  "edges": [
+    {"x":3,"y":1,"dir":"h","type":"hexagon"},
+    {"x":1,"y":2,"dir":"h","type":"hexagon"},
+    {"x":1,"y":3,"dir":"h","type":"hexagon"},
+    {"x":0,"y":4,"dir":"h","type":"hexagon"}
+  ],
+  "cells": [
+    {"x":0,"y":0,"type":"star","color":"magenta"},
+    {"x":3,"y":0,"type":"star","color":"magenta"},
+    {"x":1,"y":1,"type":"star","color":"cyan"},
+    {"x":2,"y":2,"type":"star","color":"cyan"},
+    {"x":0,"y":3,"type":"star","color":"magenta"},
+    {"x":3,"y":3,"type":"star","color":"magenta"}
+  ]
+}

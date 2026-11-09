@@ -1,0 +1,19 @@
+edenna-puzzle
+Copyright 2026 Juuzen e contributori.
+Rilasciato con licenza Apache 2.0 (vedi LICENSE).
+
+Questo progetto è un'opera derivata da windmill-client:
+  Copyright 2016 Matthew Gruen and windmill-client project contributors
+  Licensed under the Apache License, Version 2.0
+  https://github.com/thefifthmatt/windmill-client
+
+Dall'originale derivano il modello dei puzzle (coordinate, tipi di simboli,
+simmetrie, posizionamento automatico delle uscite), le regole di validazione,
+le proporzioni grafiche dei simboli e il formato dei codici di
+windmill.thefifthmatt.com, che edenna-puzzle sa importare ed esportare.
+Il codice è stato riscritto in TypeScript/React: non contiene file sorgente
+dell'originale. In particolare la verifica dei poliomini e degli eliminatori
+è stata reimplementata con un algoritmo diverso.
+
+Le regole dei puzzle sono ispirate al videogioco The Witness (Thekla, Inc.),
+con cui questo progetto non ha alcuna affiliazione.

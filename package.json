@@ -1,0 +1,52 @@
+{
+  "name": "edenna-puzzle",
+  "version": "0.1.0",
+  "description": "Editor e visualizzatore di puzzle a linea in stile The Witness, in React. Porting di windmill-client.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/lib/edenna-puzzle.js",
+  "module": "./dist/lib/edenna-puzzle.js",
+  "types": "./dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/lib/edenna-puzzle.js"
+    },
+    "./engine": {
+      "types": "./dist/lib/engine/index.d.ts",
+      "import": "./dist/lib/engine.js"
+    },
+    "./style.css": "./dist/lib/edenna-puzzle.css"
+  },
+  "files": [
+    "dist/lib"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "prepare": "npm run build:lib"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Juuzen/edenna-puzzle.git"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "format": "edenna-puzzle",
+  "version": 1,
+  "id": "cavendish-02",
+  "title": "Conteggio",
+  "description": "I triangoli dicono quanti lati della loro cella il percorso deve toccare.",
+  "width": 3,
+  "height": 3,
+  "symmetry": "none",
+  "points": [
+    {"x":3,"y":0,"type":"end"},
+    {"x":0,"y":3,"type":"start"}
+  ],
+  "edges": [
+    {"x":2,"y":1,"dir":"h","type":"hexagon"}
+  ],
+  "cells": [
+    {"x":0,"y":0,"type":"triangle","count":3},
+    {"x":2,"y":0,"type":"triangle","count":2},
+    {"x":1,"y":1,"type":"triangle","count":1},
+    {"x":0,"y":2,"type":"triangle","count":3},
+    {"x":1,"y":2,"type":"triangle","count":1}
+  ]
+}

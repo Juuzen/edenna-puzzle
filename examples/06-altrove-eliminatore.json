@@ -1,0 +1,28 @@
+{
+  "format": "edenna-puzzle",
+  "version": 1,
+  "id": "altrove-01",
+  "title": "Anomalia",
+  "description": "L'eliminatore annulla un simbolo fuori posto nella sua regione.",
+  "width": 3,
+  "height": 3,
+  "symmetry": "none",
+  "points": [
+    {"x":3,"y":0,"type":"end"},
+    {"x":0,"y":3,"type":"start"}
+  ],
+  "edges": [
+    {"x":0,"y":0,"dir":"v","type":"hexagon"},
+    {"x":2,"y":0,"dir":"v","type":"hexagon"},
+    {"x":0,"y":2,"dir":"h","type":"hexagon"},
+    {"x":2,"y":3,"dir":"h","type":"hexagon"}
+  ],
+  "cells": [
+    {"x":0,"y":0,"type":"square","color":"black"},
+    {"x":1,"y":0,"type":"square","color":"white"},
+    {"x":2,"y":0,"type":"square","color":"black"},
+    {"x":1,"y":1,"type":"eliminator"},
+    {"x":0,"y":2,"type":"square","color":"white"},
+    {"x":2,"y":2,"type":"square","color":"white"}
+  ]
+}

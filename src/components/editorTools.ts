@@ -1,0 +1,221 @@
+import {
+  type CellSpec,
+  type Color,
+  type Coord,
+  type EdgeRef,
+  type Puzzle,
+  autoEndDirection,
+  getCell,
+  getEdge,
+  getPoint,
+  gridToShape,
+  inCellBounds,
+  inEdgeBounds,
+  inPointBounds,
+  indexPuzzle,
+  setCell,
+  setEdge,
+  setPoint,
+} from '../engine';
+
+export type ToolKind =
+  | 'start'
+  | 'end'
+  | 'hexagon'
+  | 'gap'
+  | 'missing'
+  | 'square'
+  | 'star'
+  | 'polyomino'
+  | 'eliminator'
+  | 'triangle'
+  | 'erase';
+
+export interface ToolState {
+  kind: ToolKind;
+  color: Color;
+  triangleCount: 1 | 2 | 3;
+  /** Griglia 5x5 della forma del poliomino. */
+  shape: boolean[][];
+  rotatable: boolean;
+  negative: boolean;
+}
+
+export const SHAPE_SIZE = 5;
+
+export function emptyShape(): boolean[][] {
+  return Array.from({ length: SHAPE_SIZE }, () => Array(SHAPE_SIZE).fill(false));
+}
+
+export function shapeFromRows(rows: string[]): boolean[][] {
+  const g = emptyShape();
+  rows.forEach((r, y) => [...r].forEach((ch, x) => y < SHAPE_SIZE && x < SHAPE_SIZE && (g[y][x] = ch === '#')));
+  return g;
+}
+
+export const SHAPE_PRESETS: { name: string; rows: string[] }[] = [
+  { name: 'Monomino', rows: ['#'] },
+  { name: 'Domino', rows: ['##'] },
+  { name: 'I3', rows: ['###'] },
+  { name: 'L3', rows: ['#.', '##'] },
+  { name: 'O', rows: ['##', '##'] },
+  { name: 'I4', rows: ['####'] },
+  { name: 'L4', rows: ['#.', '#.', '##'] },
+  { name: 'T4', rows: ['###', '.#.'] },
+  { name: 'S4', rows: ['.##', '##.'] },
+  { name: 'Croce', rows: ['.#.', '###', '.#.'] },
+];
+
+export const DEFAULT_TOOL: ToolState = {
+  kind: 'square',
+  color: 'black',
+  triangleCount: 1,
+  shape: shapeFromRows(['#.', '#.', '##']),
+  rotatable: false,
+  negative: false,
+};
+
+export type Target =
+  | { kind: 'point'; at: Coord }
+  | { kind: 'edge'; at: EdgeRef }
+  | { kind: 'cell'; at: Coord };
+
+export const targetKey = (t: Target) =>
+  t.kind === 'edge' ? `e${t.at.x},${t.at.y},${t.at.dir}` : `${t.kind[0]}${t.at.x},${t.at.y}`;
+
+type TargetKind = Target['kind'];
+
+export function toolTargets(kind: ToolKind): TargetKind[] {
+  switch (kind) {
+    case 'start':
+    case 'end':
+      return ['point'];
+    case 'hexagon':
+      return ['point', 'edge'];
+    case 'gap':
+    case 'missing':
+      return ['edge'];
+    case 'erase':
+      return ['point', 'edge', 'cell'];
+    default:
+      return ['cell'];
+  }
+}
+
+/** Trova cosa c'è sotto il puntatore, tra i tipi ammessi dallo strumento. */
+export function hitTest(p: Puzzle, g: Coord, kinds: TargetKind[]): Target | null {
+  const pt = { x: Math.round(g.x), y: Math.round(g.y) };
+  const dPoint = Math.hypot(g.x - pt.x, g.y - pt.y);
+  // Lato più vicino: orizzontale o verticale.
+  const hEdge: EdgeRef = { x: Math.floor(g.x), y: Math.round(g.y), dir: 'h' };
+  const vEdge: EdgeRef = { x: Math.round(g.x), y: Math.floor(g.y), dir: 'v' };
+  const dh = Math.abs(g.y - hEdge.y);
+  const dv = Math.abs(g.x - vEdge.x);
+  const edge = dh <= dv ? hEdge : vEdge;
+  const dEdge = Math.min(dh, dv);
+  const cell = { x: Math.floor(g.x), y: Math.floor(g.y) };
+
+  const okPoint = kinds.includes('point') && inPointBounds(p, pt);
+  const okEdge = kinds.includes('edge') && inEdgeBounds(p, edge);
+  const okCell = kinds.includes('cell') && inCellBounds(p, cell);
+
+  if (kinds.length === 1) {
+    if (okPoint && dPoint < 0.6) return { kind: 'point', at: pt };
+    if (okEdge && dEdge < 0.45) return { kind: 'edge', at: edge };
+    if (okCell) return { kind: 'cell', at: cell };
+    return null;
+  }
+  if (okPoint && dPoint < 0.24) return { kind: 'point', at: pt };
+  if (okEdge && dEdge < (kinds.includes('cell') ? 0.16 : 0.45)) return { kind: 'edge', at: edge };
+  if (okCell) return { kind: 'cell', at: cell };
+  if (okPoint && dPoint < 0.5) return { kind: 'point', at: pt };
+  return null;
+}
+
+/** L'elemento di cella che lo strumento piazzerebbe. */
+export function toolCellItem(tool: ToolState): CellSpec | null {
+  switch (tool.kind) {
+    case 'square':
+    case 'star':
+      return { type: tool.kind, color: tool.color };
+    case 'eliminator':
+      return tool.color === 'white' ? { type: 'eliminator' } : { type: 'eliminator', color: tool.color };
+    case 'triangle':
+      return tool.color === 'orange'
+        ? { type: 'triangle', count: tool.triangleCount }
+        : { type: 'triangle', count: tool.triangleCount, color: tool.color };
+    case 'polyomino': {
+      const shape = gridToShape(tool.shape);
+      if (!shape.length) return null;
+      const item: CellSpec = { type: 'polyomino', shape };
+      if (tool.rotatable) item.rotatable = true;
+      if (tool.negative) item.negative = true;
+      return item;
+    }
+    default:
+      return null;
+  }
+}
+
+const sameJSON = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** True se nel bersaglio c'è già esattamente ciò che lo strumento metterebbe. */
+export function isAlreadyThere(p: Puzzle, tool: ToolState, t: Target): boolean {
+  const idx = indexPuzzle(p);
+  if (t.kind === 'point') {
+    const cur = getPoint(idx, t.at);
+    return !!cur && (tool.kind === cur.type || tool.kind === 'erase');
+  }
+  if (t.kind === 'edge') {
+    const cur = getEdge(idx, t.at);
+    return !!cur && (tool.kind === cur.type || tool.kind === 'erase');
+  }
+  const cur = getCell(idx, t.at);
+  if (!cur) return false;
+  if (tool.kind === 'erase') return true;
+  const want = toolCellItem(tool);
+  const { x: _x, y: _y, ...rest } = cur;
+  return sameJSON(canonicalItem(rest), canonicalItem(want));
+}
+
+function canonicalItem(o: unknown) {
+  if (!o || typeof o !== 'object') return o;
+  return Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+export interface ApplyResult {
+  puzzle: Puzzle;
+  /** Messaggio per l'utente quando l'azione non è possibile. */
+  notice?: string;
+}
+
+/**
+ * Applica lo strumento al bersaglio. `mode` indica se si sta aggiungendo o
+ * togliendo (deciso al primo clic di un trascinamento).
+ */
+export function applyTool(p: Puzzle, tool: ToolState, t: Target, mode: 'add' | 'remove'): ApplyResult {
+  if (mode === 'remove' || tool.kind === 'erase') {
+    if (t.kind === 'point') return { puzzle: setPoint(p, t.at, null) };
+    if (t.kind === 'edge') return { puzzle: setEdge(p, t.at, null) };
+    return { puzzle: setCell(p, t.at, null) };
+  }
+  if (t.kind === 'point') {
+    if (tool.kind === 'end') {
+      if (!autoEndDirection(indexPuzzle(p), t.at)) {
+        return { puzzle: p, notice: 'Le uscite vanno sul bordo o accanto a un lato assente.' };
+      }
+      return { puzzle: setPoint(p, t.at, { type: 'end' }) };
+    }
+    if (tool.kind === 'start' || tool.kind === 'hexagon') return { puzzle: setPoint(p, t.at, { type: tool.kind }) };
+    return { puzzle: p };
+  }
+  if (t.kind === 'edge') {
+    if (tool.kind === 'gap' || tool.kind === 'missing' || tool.kind === 'hexagon') {
+      return { puzzle: setEdge(p, t.at, tool.kind) };
+    }
+    return { puzzle: p };
+  }
+  const item = toolCellItem(tool);
+  if (!item) return { puzzle: p, notice: 'Disegna prima la forma del poliomino.' };
+  return { puzzle: setCell(p, t.at, item) };
+}

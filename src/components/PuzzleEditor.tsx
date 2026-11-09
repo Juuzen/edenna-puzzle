@@ -1,0 +1,822 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import {
+  COLORS,
+  MAX_SIZE,
+  type Color,
+  type Path,
+  type Puzzle,
+  type SolveResult,
+  type Symmetry,
+  type ValidationResult,
+  autoEndDirection,
+  createPuzzle,
+  encodeWindmillCode,
+  indexPuzzle,
+  parsePuzzle,
+  parsePuzzleSet,
+  resizePuzzle,
+  serializePuzzle,
+  setSymmetry,
+  solve,
+  validate,
+  PuzzleFormatError,
+} from '../engine';
+import {
+  DEFAULT_TOOL,
+  SHAPE_PRESETS,
+  SHAPE_SIZE,
+  type Target,
+  type ToolKind,
+  type ToolState,
+  applyTool,
+  emptyShape,
+  hitTest,
+  isAlreadyThere,
+  shapeFromRows,
+  targetKey,
+  toolCellItem,
+  toolTargets,
+} from './editorTools';
+import { PuzzleBoard, clientToGrid } from './PuzzleBoard';
+import { PuzzlePlayer } from './PuzzlePlayer';
+import { CellSymbol, Hexagon, LINE, START_R, U, colorVar } from './Symbols';
+
+export interface PuzzleEditorProps {
+  /** Puzzle iniziale (non controllato). */
+  defaultValue?: Puzzle;
+  /** Puzzle controllato: se cambia dall'esterno l'editor lo carica. */
+  value?: Puzzle;
+  onChange?: (p: Puzzle) => void;
+  /**
+   * Se il file importato contiene più puzzle, li passa qui. Senza questo
+   * handler viene caricato solo il primo.
+   */
+  onImportSet?: (puzzles: Puzzle[]) => void;
+  /** Tema della board. */
+  theme?: string;
+  className?: string;
+}
+
+const SYMMETRY_LABELS: Record<Symmetry, string> = {
+  none: 'Nessuna',
+  horizontal: 'Orizzontale',
+  vertical: 'Verticale',
+  rotational: 'Rotazionale',
+};
+
+const COLOR_LABELS: Record<Color, string> = {
+  black: 'Nero',
+  white: 'Bianco',
+  cyan: 'Ciano',
+  magenta: 'Magenta',
+  yellow: 'Giallo',
+  red: 'Rosso',
+  green: 'Verde',
+  blue: 'Blu',
+  orange: 'Arancione',
+};
+
+interface ToolDef {
+  kind: ToolKind;
+  label: string;
+  hint: string;
+}
+const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
+  {
+    title: 'Punti',
+    tools: [
+      { kind: 'start', label: 'Partenza', hint: 'Clic su un incrocio' },
+      { kind: 'end', label: 'Uscita', hint: 'Sul bordo o accanto a un lato assente' },
+      { kind: 'hexagon', label: 'Esagono', hint: 'Su incrocio o lato: il percorso ci deve passare' },
+    ],
+  },
+  {
+    title: 'Lati',
+    tools: [
+      { kind: 'gap', label: 'Interrotto', hint: 'Lato spezzato, non percorribile' },
+      { kind: 'missing', label: 'Senza lato', hint: 'Toglie del tutto il lato (trascina per più lati)' },
+    ],
+  },
+  {
+    title: 'Celle',
+    tools: [
+      { kind: 'square', label: 'Quadrato', hint: 'Colori diversi in regioni diverse' },
+      { kind: 'star', label: 'Stella', hint: 'Esattamente due simboli del suo colore nella regione' },
+      { kind: 'polyomino', label: 'Poliomino', hint: 'La regione deve avere questa forma' },
+      { kind: 'eliminator', label: 'Eliminatore', hint: 'Annulla un altro simbolo della regione' },
+      { kind: 'triangle', label: 'Triangoli', hint: 'Quanti lati della cella percorrere' },
+    ],
+  },
+  { title: 'Altro', tools: [{ kind: 'erase', label: 'Gomma', hint: 'Cancella qualsiasi elemento' }] },
+];
+
+const usesColor = (k: ToolKind) => k === 'square' || k === 'star' || k === 'eliminator' || k === 'triangle';
+
+// ---------------------------------------------------------------------------
+// Cronologia (annulla/ripeti)
+
+function useHistory(initial: Puzzle) {
+  const [state, setState] = useState({ past: [] as Puzzle[], present: initial, future: [] as Puzzle[] });
+  const push = useCallback((p: Puzzle, coalesce = false) => {
+    setState((s) =>
+      p === s.present
+        ? s
+        : { past: coalesce ? s.past : [...s.past.slice(-199), s.present], present: p, future: [] },
+    );
+  }, []);
+  const undo = useCallback(() => {
+    setState((s) => (s.past.length ? { past: s.past.slice(0, -1), present: s.past[s.past.length - 1], future: [s.present, ...s.future] } : s));
+  }, []);
+  const redo = useCallback(() => {
+    setState((s) => (s.future.length ? { past: [...s.past, s.present], present: s.future[0], future: s.future.slice(1) } : s));
+  }, []);
+  const reset = useCallback((p: Puzzle) => setState({ past: [], present: p, future: [] }), []);
+  return { ...state, push, undo, redo, reset, canUndo: state.past.length > 0, canRedo: state.future.length > 0 };
+}
+
+// ---------------------------------------------------------------------------
+
+function download(name: string, text: string) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const slug = (s?: string) =>
+  (s || 'puzzle')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'puzzle';
+
+/** Piccola icona SVG per i pulsanti degli strumenti. */
+function ToolIcon({ kind, tool }: { kind: ToolKind; tool: ToolState }) {
+  let body: ReactNode;
+  const lineStyle = { stroke: 'var(--ep-line)', strokeWidth: LINE, strokeLinecap: 'round' as const, fill: 'none' };
+  switch (kind) {
+    case 'start':
+      body = (
+        <g>
+          <polyline points="-35,0 45,0" style={lineStyle} />
+          <circle cx={-20} r={START_R} style={{ fill: 'var(--ep-line)' }} />
+        </g>
+      );
+      break;
+    case 'end':
+      body = <polyline points="-45,0 25,0" style={lineStyle} />;
+      break;
+    case 'hexagon':
+      body = (
+        <g>
+          <polyline points="-45,0 45,0" style={lineStyle} />
+          <g transform="scale(1.6)">
+            <Hexagon />
+          </g>
+        </g>
+      );
+      break;
+    case 'gap':
+      body = (
+        <g>
+          <polyline points="-45,0 -15,0" style={lineStyle} />
+          <polyline points="15,0 45,0" style={lineStyle} />
+        </g>
+      );
+      break;
+    case 'missing':
+      body = <polyline points="-45,0 45,0" style={{ ...lineStyle, strokeDasharray: '1 26', strokeWidth: 10 }} />;
+      break;
+    case 'erase':
+      body = (
+        <g style={{ stroke: 'currentColor', strokeWidth: 9, strokeLinecap: 'round' }}>
+          <line x1={-24} y1={-24} x2={24} y2={24} />
+          <line x1={24} y1={-24} x2={-24} y2={24} />
+        </g>
+      );
+      break;
+    default: {
+      const item = toolCellItem({ ...tool, kind }) ?? { type: 'polyomino' as const, shape: ['#'] };
+      body = (
+        <g transform="scale(1.25)">
+          <CellSymbol item={item} maxPolySize={3} />
+        </g>
+      );
+    }
+  }
+  return (
+    <svg viewBox="-50 -50 100 100" className="ep-tool__icon" aria-hidden>
+      {body}
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+export function PuzzleEditor({
+  defaultValue,
+  value,
+  onChange,
+  onImportSet,
+  theme = 'ep-theme-edenna',
+  className,
+}: PuzzleEditorProps) {
+  const history = useHistory(value ?? defaultValue ?? createPuzzle(4, 4));
+  const puzzle = history.present;
+  const [tool, setTool] = useState<ToolState>(DEFAULT_TOOL);
+  const [hover, setHover] = useState<Target | null>(null);
+  const [notice, setNotice] = useState<{ text: string; tone: 'info' | 'error' | 'ok' } | null>(null);
+  const [mode, setMode] = useState<'edit' | 'test'>('edit');
+  const [panel, setPanel] = useState<'props' | 'json'>('props');
+  const [jsonDraft, setJsonDraft] = useState<string | null>(null);
+  const [jsonKey, setJsonKey] = useState(0);
+  const [solveState, setSolveState] = useState<{ running: boolean; result?: SolveResult; show: boolean }>({
+    running: false,
+    show: false,
+  });
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const paint = useRef<{ mode: 'add' | 'remove'; done: Set<string>; base: Puzzle } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const lastEmitted = useRef<Puzzle | null>(null);
+
+  // Valore controllato cambiato dall'esterno → ricarica.
+  useEffect(() => {
+    if (value && value !== lastEmitted.current && value !== puzzle) {
+      history.reset(value);
+      setSolveState({ running: false, show: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  // Notifica le modifiche.
+  useEffect(() => {
+    if (puzzle !== lastEmitted.current && puzzle !== value) {
+      lastEmitted.current = puzzle;
+      onChange?.(puzzle);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puzzle]);
+
+  // Qualsiasi modifica invalida il risultato del solver.
+  useEffect(() => setSolveState((s) => (s.result || s.show ? { running: false, show: false } : s)), [puzzle]);
+
+  const flash = useCallback((text: string, tone: 'info' | 'error' | 'ok' = 'info') => {
+    setNotice({ text, tone });
+  }, []);
+  useEffect(() => {
+    if (!notice) return;
+    const t = window.setTimeout(() => setNotice(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [notice]);
+
+  const commit = (p: Puzzle, coalesce = false) => history.push(p, coalesce);
+
+  // --- scorciatoie
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) history.redo();
+        else history.undo();
+      } else if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        history.redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [history]);
+
+  // --- interazione con la board
+
+  const targetAt = (e: PointerEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return null;
+    return hitTest(puzzle, clientToGrid(svgRef.current, e.clientX, e.clientY), toolTargets(tool.kind));
+  };
+
+  const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
+    const t = targetAt(e);
+    if (!t) return;
+    svgRef.current?.setPointerCapture(e.pointerId);
+    const m = isAlreadyThere(puzzle, tool, t) ? 'remove' : 'add';
+    paint.current = { mode: m, done: new Set([targetKey(t)]), base: puzzle };
+    const r = applyTool(puzzle, tool, t, m);
+    if (r.notice) flash(r.notice, 'error');
+    commit(r.puzzle);
+  };
+
+  const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    const t = targetAt(e);
+    setHover(t);
+    const pt = paint.current;
+    if (!pt || !t) return;
+    const k = targetKey(t);
+    if (pt.done.has(k)) return;
+    pt.done.add(k);
+    // Trascinando si dipinge con la stessa modalità del primo clic, e tutto
+    // il trascinamento è un solo passo di "annulla".
+    const already = isAlreadyThere(puzzle, tool, t);
+    if ((pt.mode === 'add') === already) return;
+    const r = applyTool(puzzle, tool, t, pt.mode);
+    commit(r.puzzle, true);
+  };
+
+  const endPaint = () => {
+    paint.current = null;
+  };
+
+  // --- anteprima dello strumento sotto il puntatore
+  const overlay = useMemo(() => {
+    if (!hover || mode !== 'edit') return null;
+    const remove = isAlreadyThere(puzzle, tool, hover);
+    const cls = `ep-hover${remove || tool.kind === 'erase' ? ' ep-hover--remove' : ''}`;
+    if (hover.kind === 'cell') {
+      const item = toolCellItem(tool);
+      return (
+        <g className={cls} transform={`translate(${(hover.at.x + 0.5) * U},${(hover.at.y + 0.5) * U})`}>
+          <rect x={-46} y={-46} width={92} height={92} rx={10} className="ep-hover__box" />
+          {item && !remove && tool.kind !== 'erase' && (
+            <g className="ep-hover__ghost">
+              <CellSymbol item={item} />
+            </g>
+          )}
+        </g>
+      );
+    }
+    if (hover.kind === 'point') {
+      const bad = tool.kind === 'end' && !remove && !autoEndDirection(indexPuzzle(puzzle), hover.at);
+      return (
+        <g className={`${cls}${bad ? ' ep-hover--bad' : ''}`} transform={`translate(${hover.at.x * U},${hover.at.y * U})`}>
+          <circle r={30} className="ep-hover__box" />
+        </g>
+      );
+    }
+    const { x, y, dir } = hover.at;
+    return (
+      <g className={cls}>
+        <rect
+          className="ep-hover__box"
+          x={dir === 'h' ? x * U + 10 : x * U - 22}
+          y={dir === 'h' ? y * U - 22 : y * U + 10}
+          width={dir === 'h' ? U - 20 : 44}
+          height={dir === 'h' ? 44 : U - 20}
+          rx={10}
+        />
+      </g>
+    );
+  }, [hover, tool, puzzle, mode]);
+
+  // --- import / export
+
+  const loadText = (text: string) => {
+    try {
+      const set = parsePuzzleSet(text.trim().endsWith('_0') ? JSON.stringify(parsePuzzle(text).puzzle) : text);
+      const warnings = set.flatMap((r) => r.warnings);
+      if (set.length > 1 && onImportSet) {
+        onImportSet(set.map((r) => r.puzzle));
+        flash(`Importati ${set.length} puzzle.`, 'ok');
+        return true;
+      }
+      commit(set[0].puzzle);
+      flash(
+        set.length > 1
+          ? `Il file contiene ${set.length} puzzle: caricato il primo.`
+          : warnings.length
+            ? `Importato con ${warnings.length} avvisi: ${warnings[0]}`
+            : 'Puzzle importato.',
+        warnings.length ? 'info' : 'ok',
+      );
+      return true;
+    } catch (err) {
+      flash(err instanceof PuzzleFormatError ? err.message : `Errore: ${(err as Error).message}`, 'error');
+      return false;
+    }
+  };
+
+  const onFile = async (f: File | undefined) => {
+    if (!f) return;
+    loadText(await f.text());
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      flash(`${what} copiato negli appunti.`, 'ok');
+    } catch {
+      flash('Impossibile accedere agli appunti.', 'error');
+    }
+  };
+
+  // --- solver
+  const runSolver = () => {
+    setSolveState({ running: true, show: false });
+    // Lascia il tempo al browser di mostrare lo stato "in corso".
+    window.setTimeout(() => {
+      const result = solve(puzzle, { maxSolutions: 2, timeLimitMs: 4000 });
+      setSolveState({ running: false, result, show: result.solutions.length > 0 });
+    }, 30);
+  };
+
+  const solverText = (r: SolveResult) => {
+    const n = r.solutions.length;
+    if (n === 0) return r.exhaustive ? 'Nessuna soluzione: il puzzle è impossibile.' : 'Nessuna soluzione trovata entro il tempo limite.';
+    if (n === 1) return r.exhaustive ? 'Soluzione unica.' : 'Trovata una soluzione (ricerca non completa).';
+    return 'Più soluzioni possibili.';
+  };
+
+  // --- controlli di coerenza
+  const issues = useMemo(() => {
+    const out: string[] = [];
+    if (!puzzle.points.some((p) => p.type === 'start')) out.push('Manca una partenza.');
+    if (!puzzle.points.some((p) => p.type === 'end')) out.push('Manca un’uscita.');
+    const idx = indexPuzzle(puzzle);
+    for (const p of puzzle.points) {
+      if (p.type === 'end' && !autoEndDirection(idx, p)) out.push(`L’uscita in ${p.x},${p.y} non ha sbocco.`);
+    }
+    return out;
+  }, [puzzle]);
+
+  const json = useMemo(() => serializePuzzle(puzzle), [puzzle]);
+  const shownSolution: Path[] | null = solveState.show && solveState.result?.solutions[0] ? solveState.result.solutions[0] : null;
+  const shownEliminated = useMemo(
+    () => (shownSolution ? validate(puzzle, shownSolution).eliminated : []),
+    [shownSolution, puzzle],
+  );
+
+  const setMeta = (patch: Partial<Puzzle>) => {
+    const next = { ...puzzle, ...patch };
+    (Object.keys(patch) as (keyof Puzzle)[]).forEach((k) => {
+      if (next[k] === '' || next[k] === undefined) delete next[k];
+    });
+    commit(next, true);
+  };
+
+  const sizeOptions = Array.from({ length: MAX_SIZE }, (_, i) => i + 1);
+
+  return (
+    <div className={`ep-editor ${theme}${className ? ` ${className}` : ''}`}>
+      {/* ------------------------------------------------ strumenti */}
+      <aside className="ep-editor__tools" aria-label="Strumenti">
+        {TOOL_GROUPS.map((g) => (
+          <section key={g.title} className="ep-group">
+            <h3 className="ep-group__title">{g.title}</h3>
+            <div className="ep-tools">
+              {g.tools.map((t) => (
+                <button
+                  key={t.kind}
+                  type="button"
+                  className={`ep-tool${tool.kind === t.kind ? ' is-active' : ''}`}
+                  onClick={() => {
+                    setTool({ ...tool, kind: t.kind });
+                    setMode('edit');
+                  }}
+                  title={`${t.label} — ${t.hint}`}
+                  aria-pressed={tool.kind === t.kind}
+                >
+                  <ToolIcon kind={t.kind} tool={tool} />
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {usesColor(tool.kind) && (
+          <section className="ep-group">
+            <h3 className="ep-group__title">Colore</h3>
+            <div className="ep-swatches">
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`ep-swatch${tool.color === c ? ' is-active' : ''}`}
+                  style={{ background: colorVar(c) }}
+                  title={COLOR_LABELS[c]}
+                  aria-label={COLOR_LABELS[c]}
+                  aria-pressed={tool.color === c}
+                  onClick={() => setTool({ ...tool, color: c })}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tool.kind === 'triangle' && (
+          <section className="ep-group">
+            <h3 className="ep-group__title">Numero</h3>
+            <div className="ep-seg">
+              {([1, 2, 3] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={tool.triangleCount === n ? 'is-active' : ''}
+                  onClick={() => setTool({ ...tool, triangleCount: n })}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tool.kind === 'polyomino' && (
+          <section className="ep-group">
+            <h3 className="ep-group__title">Forma</h3>
+            <div className="ep-shape" role="grid" aria-label="Forma del poliomino">
+              {tool.shape.map((row, y) =>
+                row.map((on, x) => (
+                  <button
+                    key={`${x},${y}`}
+                    type="button"
+                    className={`ep-shape__cell${on ? ' is-on' : ''}${tool.negative ? ' is-neg' : ''}`}
+                    aria-pressed={on}
+                    aria-label={`Riga ${y + 1}, colonna ${x + 1}`}
+                    onClick={() => {
+                      const shape = tool.shape.map((r) => [...r]);
+                      shape[y][x] = !shape[y][x];
+                      setTool({ ...tool, shape });
+                    }}
+                  />
+                )),
+              )}
+            </div>
+            <div className="ep-presets">
+              {SHAPE_PRESETS.map((p) => (
+                <button key={p.name} type="button" title={p.name} onClick={() => setTool({ ...tool, shape: shapeFromRows(p.rows) })}>
+                  <svg viewBox="-50 -50 100 100" aria-hidden>
+                    <CellSymbol item={{ type: 'polyomino', shape: p.rows }} maxPolySize={3} />
+                  </svg>
+                </button>
+              ))}
+              <button type="button" title="Svuota" onClick={() => setTool({ ...tool, shape: emptyShape() })}>
+                ∅
+              </button>
+            </div>
+            <label className="ep-check">
+              <input type="checkbox" checked={tool.rotatable} onChange={(e) => setTool({ ...tool, rotatable: e.target.checked })} />
+              Ruotabile
+            </label>
+            <label className="ep-check">
+              <input type="checkbox" checked={tool.negative} onChange={(e) => setTool({ ...tool, negative: e.target.checked })} />
+              Negativo (sottrae)
+            </label>
+            <p className="ep-note">Massimo {SHAPE_SIZE}×{SHAPE_SIZE}. I poliomini contano per le stelle come giallo (blu se negativi).</p>
+          </section>
+        )}
+      </aside>
+
+      {/* ------------------------------------------------ area centrale */}
+      <main className="ep-editor__stage">
+        <div className="ep-toolbar">
+          <div className="ep-seg" role="tablist">
+            <button type="button" className={mode === 'edit' ? 'is-active' : ''} onClick={() => setMode('edit')}>
+              Modifica
+            </button>
+            <button
+              type="button"
+              className={mode === 'test' ? 'is-active' : ''}
+              onClick={() => {
+                setMode('test');
+                setTestResult(null);
+              }}
+            >
+              Prova
+            </button>
+          </div>
+          <div className="ep-toolbar__spacer" />
+          <button type="button" className="ep-btn" onClick={history.undo} disabled={!history.canUndo} title="Annulla (Ctrl+Z)">
+            ↶ Annulla
+          </button>
+          <button type="button" className="ep-btn" onClick={history.redo} disabled={!history.canRedo} title="Ripeti (Ctrl+Shift+Z)">
+            ↷ Ripeti
+          </button>
+        </div>
+
+        <div className="ep-stage">
+          {mode === 'edit' ? (
+            <PuzzleBoard
+              ref={svgRef}
+              className="ep-editor-board"
+              puzzle={puzzle}
+              paths={shownSolution}
+              status={shownSolution ? 'success' : 'idle'}
+              eliminated={shownEliminated}
+              overlay={overlay}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={endPaint}
+              onPointerCancel={endPaint}
+              onPointerLeave={() => setHover(null)}
+              style={{ touchAction: 'none', cursor: 'crosshair' }}
+            />
+          ) : (
+            <PuzzlePlayer
+              key={json}
+              puzzle={puzzle}
+              theme=""
+              lockOnSolve={false}
+              onSolve={(r: ValidationResult) =>
+                setTestResult(r.eliminated.length ? `Risolto (con ${r.eliminated.length} simboli eliminati).` : 'Risolto!')
+              }
+              onFail={(r) => setTestResult(r.messages[0] ?? `Non valido: ${r.errors.length} simboli non soddisfatti.`)}
+              onStart={() => setTestResult(null)}
+            />
+          )}
+        </div>
+        <div className="ep-status" aria-live="polite">
+          {mode === 'test'
+            ? (testResult ?? 'Clic sulla partenza, poi muovi il puntatore e clicca sull’uscita. Frecce e Invio da tastiera.')
+            : notice
+              ? <span className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</span>
+              : (TOOL_GROUPS.flatMap((g) => g.tools).find((t) => t.kind === tool.kind)?.hint ?? '')}
+        </div>
+      </main>
+
+      {/* ------------------------------------------------ pannello laterale */}
+      <aside className="ep-editor__side">
+        <div className="ep-seg ep-seg--full" role="tablist">
+          <button type="button" className={panel === 'props' ? 'is-active' : ''} onClick={() => setPanel('props')}>
+            Puzzle
+          </button>
+          <button
+            type="button"
+            className={panel === 'json' ? 'is-active' : ''}
+            onClick={() => {
+              setPanel('json');
+              setJsonDraft(null);
+            }}
+          >
+            JSON
+          </button>
+        </div>
+
+        {panel === 'props' ? (
+          <>
+            <section className="ep-group">
+              <label className="ep-field">
+                <span>Titolo</span>
+                <input value={puzzle.title ?? ''} onChange={(e) => setMeta({ title: e.target.value })} />
+              </label>
+              <label className="ep-field">
+                <span>ID</span>
+                <input value={puzzle.id ?? ''} placeholder="es. altrove-b12" onChange={(e) => setMeta({ id: e.target.value })} />
+              </label>
+              <label className="ep-field">
+                <span>Autore</span>
+                <input value={puzzle.author ?? ''} onChange={(e) => setMeta({ author: e.target.value })} />
+              </label>
+              <label className="ep-field">
+                <span>Note</span>
+                <textarea rows={2} value={puzzle.description ?? ''} onChange={(e) => setMeta({ description: e.target.value })} />
+              </label>
+            </section>
+
+            <section className="ep-group">
+              <h3 className="ep-group__title">Griglia</h3>
+              <div className="ep-row">
+                <label className="ep-field">
+                  <span>Larghezza</span>
+                  <select value={puzzle.width} onChange={(e) => commit(resizePuzzle(puzzle, +e.target.value, puzzle.height))}>
+                    {sizeOptions.map((n) => (
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="ep-field">
+                  <span>Altezza</span>
+                  <select value={puzzle.height} onChange={(e) => commit(resizePuzzle(puzzle, puzzle.width, +e.target.value))}>
+                    {sizeOptions.map((n) => (
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="ep-field">
+                <span>Simmetria</span>
+                <select value={puzzle.symmetry} onChange={(e) => commit(setSymmetry(puzzle, e.target.value as Symmetry))}>
+                  {(Object.keys(SYMMETRY_LABELS) as Symmetry[]).map((s) => (
+                    <option key={s} value={s}>
+                      {SYMMETRY_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="ep-note">Riducendo la griglia si perdono gli elementi che non ci stanno più (Ctrl+Z per tornare indietro).</p>
+            </section>
+
+            <section className="ep-group">
+              <h3 className="ep-group__title">Verifica</h3>
+              {issues.map((i) => (
+                <p key={i} className="ep-notice ep-notice--error">
+                  {i}
+                </p>
+              ))}
+              <div className="ep-row">
+                <button type="button" className="ep-btn" onClick={runSolver} disabled={solveState.running || issues.length > 0}>
+                  {solveState.running ? 'Calcolo…' : 'Cerca soluzioni'}
+                </button>
+                {solveState.result && solveState.result.solutions.length > 0 && (
+                  <button type="button" className="ep-btn" onClick={() => setSolveState((s) => ({ ...s, show: !s.show }))}>
+                    {solveState.show ? 'Nascondi' : 'Mostra'}
+                  </button>
+                )}
+              </div>
+              {solveState.result && (
+                <p className={`ep-notice ep-notice--${solveState.result.solutions.length === 1 && solveState.result.exhaustive ? 'ok' : 'info'}`}>
+                  {solverText(solveState.result)}{' '}
+                  <span className="ep-muted">
+                    ({solveState.result.checked} percorsi, {solveState.result.elapsedMs} ms)
+                  </span>
+                </p>
+              )}
+            </section>
+
+            <section className="ep-group">
+              <h3 className="ep-group__title">File</h3>
+              <div className="ep-row ep-row--wrap">
+                <button type="button" className="ep-btn ep-btn--primary" onClick={() => download(`${slug(puzzle.id || puzzle.title)}.json`, json)}>
+                  Esporta JSON
+                </button>
+                <button type="button" className="ep-btn" onClick={() => fileRef.current?.click()}>
+                  Importa…
+                </button>
+                <button type="button" className="ep-btn" onClick={() => copy(json, 'JSON')}>
+                  Copia JSON
+                </button>
+                <button type="button" className="ep-btn" onClick={() => copy(encodeWindmillCode(puzzle), 'Codice Windmill')}>
+                  Copia codice Windmill
+                </button>
+                <button
+                  type="button"
+                  className="ep-btn ep-btn--danger"
+                  onClick={() => commit(createPuzzle(puzzle.width, puzzle.height))}
+                >
+                  Svuota
+                </button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".json,application/json,.txt"
+                hidden
+                onChange={(e) => onFile(e.target.files?.[0])}
+              />
+              <p className="ep-note">
+                Si importano file JSON (singoli o raccolte) e codici/URL di The Windmill: incollali nella scheda JSON.
+              </p>
+            </section>
+          </>
+        ) : (
+          <section className="ep-group ep-group--grow">
+            <textarea
+              key={jsonKey}
+              className="ep-json"
+              spellCheck={false}
+              value={jsonDraft ?? json}
+              onChange={(e) => setJsonDraft(e.target.value)}
+              aria-label="Puzzle in formato JSON"
+            />
+            <div className="ep-row">
+              <button
+                type="button"
+                className="ep-btn ep-btn--primary"
+                disabled={jsonDraft === null || jsonDraft === json}
+                onClick={() => {
+                  if (loadText(jsonDraft ?? '')) {
+                    setJsonDraft(null);
+                    setJsonKey((k) => k + 1);
+                  }
+                }}
+              >
+                Applica
+              </button>
+              <button
+                type="button"
+                className="ep-btn"
+                disabled={jsonDraft === null}
+                onClick={() => {
+                  setJsonDraft(null);
+                  setJsonKey((k) => k + 1);
+                }}
+              >
+                Ripristina
+              </button>
+            </div>
+            <p className="ep-note">Modifica il JSON a mano oppure incolla un codice/URL di The Windmill, poi «Applica».</p>
+            {notice && <p className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</p>}
+          </section>
+        )}
+      </aside>
+    </div>
+  );
+}

@@ -1,0 +1,24 @@
+{
+  "format": "edenna-puzzle",
+  "version": 1,
+  "id": "foxtrot-01",
+  "title": "Forme",
+  "description": "La regione di un poliomino deve avere esattamente quella forma.",
+  "width": 4,
+  "height": 4,
+  "symmetry": "none",
+  "points": [
+    {"x":4,"y":0,"type":"end"},
+    {"x":0,"y":3,"type":"hexagon"},
+    {"x":0,"y":4,"type":"start"}
+  ],
+  "edges": [
+    {"x":3,"y":2,"dir":"v","type":"hexagon"},
+    {"x":0,"y":4,"dir":"h","type":"hexagon"}
+  ],
+  "cells": [
+    {"x":0,"y":0,"type":"polyomino","shape":["##","##"]},
+    {"x":3,"y":2,"type":"polyomino","shape":["#.","#.","##"],"rotatable":true},
+    {"x":1,"y":3,"type":"polyomino","shape":["###"]}
+  ]
+}

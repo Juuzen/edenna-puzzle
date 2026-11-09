@@ -1,0 +1,33 @@
+{
+  "format": "edenna-puzzle",
+  "version": 1,
+  "id": "lavander-01",
+  "title": "Crepe",
+  "description": "Lati interrotti, lati mancanti ed esagoni obbligatori.",
+  "width": 4,
+  "height": 4,
+  "symmetry": "none",
+  "points": [
+    {"x":2,"y":0,"type":"end"},
+    {"x":4,"y":0,"type":"hexagon"},
+    {"x":2,"y":2,"type":"hexagon"},
+    {"x":0,"y":4,"type":"start"},
+    {"x":2,"y":4,"type":"hexagon"},
+    {"x":4,"y":4,"type":"start"}
+  ],
+  "edges": [
+    {"x":1,"y":0,"dir":"h","type":"missing"},
+    {"x":2,"y":0,"dir":"h","type":"missing"},
+    {"x":1,"y":1,"dir":"h","type":"gap"},
+    {"x":3,"y":1,"dir":"v","type":"gap"},
+    {"x":0,"y":2,"dir":"v","type":"hexagon"},
+    {"x":2,"y":3,"dir":"h","type":"gap"},
+    {"x":3,"y":3,"dir":"v","type":"hexagon"},
+    {"x":0,"y":4,"dir":"h","type":"hexagon"},
+    {"x":3,"y":4,"dir":"h","type":"hexagon"}
+  ],
+  "cells": [
+    {"x":0,"y":0,"type":"square","color":"black"},
+    {"x":3,"y":3,"type":"square","color":"white"}
+  ]
+}
