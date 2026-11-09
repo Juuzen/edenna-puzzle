@@ -7,6 +7,7 @@ import {
   DIRECTIONS,
   endDirection,
   indexPuzzle,
+  reflectPoint,
   symbolRefKey,
 } from '../engine';
 import { CellSymbol, Hexagon, LINE, MARGIN, START_R, U, maxPolyominoSize } from './Symbols';
@@ -24,11 +25,17 @@ export interface PuzzleBoardProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
   eliminated?: SymbolRef[];
   /** Contenuto extra disegnato sopra la griglia, in unità SVG (cella = 100). */
   overlay?: ReactNode;
+  /**
+   * Posizione del puntatore in coordinate di griglia (cella = 1): mostra un
+   * indicatore semitrasparente, e il suo riflesso nei puzzle simmetrici.
+   */
+  pointer?: Coord | null;
   /** Testo alternativo per screen reader. */
   label?: string;
 }
 
 const toSvg = (c: Coord) => `${c.x * U},${c.y * U}`;
+const CURSOR_R = 22;
 
 /** Converte una posizione del puntatore in coordinate di griglia (cella = 1). */
 export function clientToGrid(svg: SVGSVGElement, clientX: number, clientY: number): Coord {
@@ -43,7 +50,7 @@ export function clientToGrid(svg: SVGSVGElement, clientX: number, clientY: numbe
  * visualizzatore sia dall'editor.
  */
 export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function PuzzleBoard(
-  { puzzle, trace, paths, status = 'idle', errors, eliminated, overlay, label, className, ...rest },
+  { puzzle, trace, paths, status = 'idle', errors, eliminated, overlay, pointer: cursor, label, className, ...rest },
   ref,
 ) {
   const idx = indexPuzzle(puzzle);
@@ -185,6 +192,19 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
             );
           })}
       </g>
+      {cursor && (
+        <g className="ep-cursors" pointerEvents="none">
+          {puzzle.symmetry !== 'none' && (
+            <circle
+              className="ep-cursor ep-cursor--mirror"
+              cx={reflectPoint(puzzle.symmetry, w, h, cursor).x * U}
+              cy={reflectPoint(puzzle.symmetry, w, h, cursor).y * U}
+              r={CURSOR_R}
+            />
+          )}
+          <circle className="ep-cursor" cx={cursor.x * U} cy={cursor.y * U} r={CURSOR_R} />
+        </g>
+      )}
       {overlay}
     </svg>
   );

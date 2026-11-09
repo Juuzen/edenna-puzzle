@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import {
+  type Coord,
   type Direction,
   type Path,
   type Puzzle,
@@ -73,6 +74,8 @@ export function PuzzlePlayer({
   const [errors, setErrors] = useState<SymbolRef[]>([]);
   const [eliminated, setEliminated] = useState<SymbolRef[]>([]);
   const [finalPaths, setFinalPaths] = useState<Path[] | null>(null);
+  /** Posizione del puntatore (coordinate di griglia) mentre si traccia. */
+  const [cursor, setCursor] = useState<Coord | null>(null);
   const traceRef = useRef<TraceState | null>(null);
   const dragRef = useRef<{ pointerId: number; moved: boolean; mode: 'drag' | 'follow' } | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -85,6 +88,7 @@ export function PuzzlePlayer({
   const reset = useCallback(() => {
     window.clearTimeout(timer.current);
     update(null);
+    setCursor(null);
     dragRef.current = null;
     setStatus('idle');
     setErrors([]);
@@ -110,6 +114,7 @@ export function PuzzlePlayer({
 
   const cancel = () => {
     dragRef.current = null;
+    setCursor(null);
     update(null);
     setStatus('idle');
   };
@@ -118,6 +123,7 @@ export function PuzzlePlayer({
   const finish = () => {
     const t = traceRef.current;
     dragRef.current = null;
+    setCursor(null);
     if (!t) return;
     if (!isTraceComplete(idx, t)) {
       cancel();
@@ -167,12 +173,14 @@ export function PuzzlePlayer({
     svgRef.current.setPointerCapture(e.pointerId);
     dragRef.current = { pointerId: e.pointerId, moved: false, mode: e.pointerType === 'mouse' ? 'follow' : 'drag' };
     begin(startTrace(start.p));
+    setCursor(g);
   };
 
   const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
     const t = traceRef.current;
     if (!t || !svgRef.current) return;
     const g = clientToGrid(svgRef.current, e.clientX, e.clientY);
+    setCursor(g);
     const next = moveTrace(idx, t, g);
     if (dragRef.current && next.path.length + next.t > 1.3) dragRef.current.moved = true;
     update(next);
@@ -219,6 +227,7 @@ export function PuzzlePlayer({
     const dir = KEY_DIR[e.key];
     if (dir && t) {
       e.preventDefault();
+      setCursor(null);
       update(stepTrace(idx, t, dir));
     }
   };
@@ -233,6 +242,7 @@ export function PuzzlePlayer({
         status={status}
         errors={errors}
         eliminated={eliminated}
+        pointer={trace ? cursor : null}
         tabIndex={disabled ? -1 : 0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

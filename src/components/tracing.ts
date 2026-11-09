@@ -100,61 +100,123 @@ function reach(idx: PuzzleIndex, s: TraceState, from: Coord, dir: Direction): nu
 }
 
 const dot = (a: Coord, b: Coord) => a.x * b.x + a.y * b.y;
+const ALL_DIRS = Object.keys(DIRECTIONS) as Direction[];
+const OPPOSITE: Record<Direction, Direction> = { up: 'down', down: 'up', left: 'right', right: 'left' };
+
+/**
+ * Penalità (in celle) per cambiare tratto passando "attraverso" il vertice
+ * quando la testa è già avanzata: evita lo sfarfallio quando il puntatore
+ * oscilla sulla diagonale di un incrocio.
+ */
+const SWITCH_HYSTERESIS = 0.08;
+
+/** Un possibile tratto su cui portare la testa. */
+interface Candidate {
+  /** Come si arriva al tratto partendo dallo stato attuale. */
+  kind: 'current' | 'branch' | 'back' | 'forward';
+  dir: Direction;
+  /** Avanzamento lungo il tratto. */
+  t: number;
+  dist: number;
+}
 
 /**
  * Fa avanzare il serpente verso `target` (posizione del puntatore in unità
- * di cella). Si muove solo lungo la griglia, torna indietro se il puntatore
- * ripercorre il tratto precedente e "aggancia" gli angoli per rendere
- * naturali le curve.
+ * di cella).
+ *
+ * A ogni passo la testa va sul punto della griglia più vicino al puntatore
+ * fra quelli raggiungibili senza staccarsi dal percorso: il tratto attuale,
+ * gli altri tratti che escono dall'ultimo vertice (svolta o ritorno indietro)
+ * e i tratti che escono dal vertice successivo (curva in avanti). Le svolte
+ * ai vertici sono quindi continue: la testa passa per l'incrocio e prosegue
+ * senza scatti. Il ciclo si ripete finché la testa cambia vertice, così
+ * anche i movimenti veloci vengono seguiti.
  */
 export function moveTrace(idx: PuzzleIndex, state: TraceState, target: Coord): TraceState {
   let s: TraceState = { path: [...state.path], dir: state.dir, t: state.t };
+
+  const evalSeg = (base: Coord, d: Direction, max: number) => {
+    const v = DIRECTIONS[d];
+    const t = Math.max(0, Math.min(dot({ x: target.x - base.x, y: target.y - base.y }, v), max));
+    return { t, dist: Math.hypot(base.x + v.x * t - target.x, base.y + v.y * t - target.y) };
+  };
+
   for (let guard = 0; guard < 64; guard++) {
     const v = traceHead(s);
-    const rel = { x: target.x - v.x, y: target.y - v.y };
-    if (!s.dir) {
-      const prev = s.path.length >= 2 ? directionBetween(v, s.path[s.path.length - 2]) : null;
-      const cands = (Object.keys(DIRECTIONS) as Direction[])
-        .map((d) => ({ d, p: dot(rel, DIRECTIONS[d]) }))
-        .filter((c) => c.p > 0.02)
-        .sort((a, b) => b.p - a.p);
-      let moved = false;
-      for (const { d } of cands) {
-        if (d === prev) {
-          const popped = s.path.pop()!;
-          s = { path: s.path, dir: directionBetween(traceHead(s), popped), t: 1 };
-          moved = true;
-          break;
-        }
-        if (reach(idx, s, v, d) > 0) {
-          s = { ...s, dir: d, t: 0 };
-          moved = true;
-          break;
-        }
+    const prevDir = s.path.length >= 2 ? directionBetween(v, s.path[s.path.length - 2]) : null;
+    const cands: Candidate[] = [];
+
+    // 1. Restare sul tratto attuale (o sul vertice, se non si è su un tratto).
+    if (s.dir) {
+      const max = reach(idx, s, v, s.dir);
+      cands.push({ kind: 'current', dir: s.dir, ...evalSeg(v, s.dir, max) });
+    } else {
+      cands.push({ kind: 'current', dir: 'up', t: 0, dist: Math.hypot(v.x - target.x, v.y - target.y) });
+    }
+
+    // 2. Altri tratti che escono dall'ultimo vertice, compreso il ritorno.
+    // Se la testa è già avanzata, cambiare tratto è un salto: va penalizzato.
+    const jumpPenalty = s.dir && s.t > 0.02 ? SWITCH_HYSTERESIS : 0;
+    for (const d of ALL_DIRS) {
+      if (d === s.dir) continue;
+      if (d === prevDir) {
+        const r = evalSeg(v, d, 1);
+        if (r.t > 0) cands.push({ kind: 'back', dir: d, t: r.t, dist: r.dist + jumpPenalty });
+        continue;
       }
-      if (!moved) break;
+      const max = reach(idx, s, v, d);
+      if (max <= 0) continue;
+      const r = evalSeg(v, d, max);
+      if (r.t > 0) cands.push({ kind: 'branch', dir: d, t: r.t, dist: r.dist + jumpPenalty });
+    }
+
+    // 3. Tratti che escono dal vertice successivo (si può svoltare solo se
+    // il tratto attuale è percorribile per intero).
+    if (s.dir && reach(idx, s, v, s.dir) >= 1) {
+      const w = neighbor(v, s.dir);
+      const ahead: TraceState = { path: [...s.path, w], dir: null, t: 0 };
+      for (const d of ALL_DIRS) {
+        if (d === OPPOSITE[s.dir]) continue;
+        const max = reach(idx, ahead, w, d);
+        if (max <= 0) continue;
+        const r = evalSeg(w, d, max);
+        if (r.t > 0) cands.push({ kind: 'forward', dir: d, t: r.t, dist: r.dist });
+      }
+    }
+
+    // A parità vince il primo, cioè il tratto attuale.
+    let best = cands[0];
+    for (const c of cands) if (c.dist < best.dist - 1e-9) best = c;
+
+    if (best.kind === 'current') {
+      if (!s.dir) break;
+      if (best.t >= 1 - 1e-9 && reach(idx, s, v, s.dir) >= 1) {
+        // Raggiunto il vertice successivo: lo si aggiunge e si riprova da lì.
+        s = { path: [...s.path, neighbor(v, s.dir)], dir: null, t: 0 };
+        continue;
+      }
+      s = best.t <= 1e-9 ? { ...s, dir: null, t: 0 } : { ...s, t: best.t };
+      break;
+    }
+    if (best.kind === 'branch') {
+      if (best.t >= 1 - 1e-9) {
+        s = { path: [...s.path, neighbor(v, best.dir)], dir: null, t: 0 };
+        continue;
+      }
+      s = { ...s, dir: best.dir, t: best.t };
+      break;
+    }
+    if (best.kind === 'back') {
+      const path = s.path.slice(0, -1);
+      s = { path, dir: OPPOSITE[best.dir], t: 1 - best.t };
+      if (best.t >= 1 - 1e-9) s = { path, dir: null, t: 0 };
       continue;
     }
-    const d = DIRECTIONS[s.dir];
-    const proj = dot(rel, d);
-    const perp = Math.abs(rel.x * d.y - rel.y * d.x);
-    const max = reach(idx, s, v, s.dir);
-    let t = Math.max(0, Math.min(proj, max));
-    // Aggancio agli angoli: se il puntatore è molto di lato, completa o
-    // annulla il tratto per poter svoltare.
-    if (perp > 0.3 && max >= 1) t = t > 0.5 ? 1 : t < 0.5 ? 0 : t;
-    if (t >= 1 && max >= 1) {
-      s = { path: [...s.path, neighbor(v, s.dir)], dir: null, t: 0 };
-      continue;
-    }
-    if (t <= 0) {
-      // Tornati al vertice: al giro successivo si sceglie una nuova
-      // direzione (quella attuale ha proiezione <= 0 e non verrà ripresa).
-      s = { ...s, dir: null, t: 0 };
-      continue;
-    }
-    s = { ...s, t };
-    break;
+    // forward: si passa per il vertice successivo e si prosegue sul nuovo tratto.
+    const w = neighbor(v, s.dir!);
+    s = { path: [...s.path, w], dir: best.dir, t: best.t };
+    if (best.t >= 1 - 1e-9) s = { path: [...s.path, neighbor(w, best.dir)], dir: null, t: 0 };
+    continue;
   }
   return s;
 }

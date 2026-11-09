@@ -158,6 +158,22 @@
   100% { opacity: 0; }
 }
 
+/* ---------------------------------------------------------------- cursor */
+
+/* Indicatore del puntatore mentre si traccia (e il suo riflesso). */
+.ep-cursor {
+  fill: var(--ep-path);
+  fill-opacity: 0.22;
+  stroke: var(--ep-path);
+  stroke-opacity: 0.75;
+  stroke-width: 3.5;
+}
+.ep-cursor--mirror {
+  fill-opacity: 0.14;
+  stroke-opacity: 0.45;
+  stroke-dasharray: 6 5;
+}
+
 /* --------------------------------------------------------------- symbols */
 
 .ep-sym__halo {
