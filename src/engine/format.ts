@@ -8,6 +8,7 @@ import {
   type Puzzle,
   type PuzzleBackground,
   type PuzzleCollection,
+  type PuzzlePalette,
   type Symmetry,
   COLORS,
   FORMAT_ID,
@@ -73,6 +74,31 @@ export function parseBackground(raw: unknown, warnings: string[] = []): PuzzleBa
     } else warnings.push('background.angle non valido, uso 180.');
   }
   return out;
+}
+
+const PALETTE_KEYS = ['line', 'path', 'success'] as const;
+
+/** Legge e ripulisce un campo `palette`; null se vuoto o non utilizzabile. */
+export function parsePalette(raw: unknown, warnings: string[] = []): PuzzlePalette | null {
+  if (raw === undefined || raw === null) return null;
+  if (!isObj(raw)) {
+    warnings.push('"palette" deve essere un oggetto, ignorato.');
+    return null;
+  }
+  const out: PuzzlePalette = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!(PALETTE_KEYS as readonly string[]).includes(k)) {
+      warnings.push(`palette.${k}: chiave sconosciuta, ignorata.`);
+      continue;
+    }
+    const c = normalizeHexColor(v);
+    if (c) out[k as (typeof PALETTE_KEYS)[number]] = c;
+    else warnings.push(`palette.${k}: colore "${String(v)}" non valido.`);
+  }
+  // Ordine stabile delle chiavi.
+  const sorted: PuzzlePalette = {};
+  for (const k of PALETTE_KEYS) if (out[k]) sorted[k] = out[k];
+  return Object.keys(sorted).length ? sorted : null;
 }
 
 /**
@@ -201,6 +227,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
   });
 
   const background = parseBackground(raw.background, warnings);
+  const palette = parsePalette(raw.palette, warnings);
 
   const puzzle: Puzzle = {
     format: FORMAT_ID,
@@ -210,6 +237,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
     ...(typeof raw.author === 'string' ? { author: raw.author } : {}),
     ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
     ...(background ? { background } : {}),
+    ...(palette ? { palette } : {}),
     ...(isObj(raw.data) ? { data: raw.data } : {}),
     width,
     height,
@@ -301,6 +329,7 @@ function canonical<T extends object>(item: T): T {
 
 export function toPuzzleObject(p: Puzzle): Puzzle {
   const background = p.background ? parseBackground(p.background) : null;
+  const palette = p.palette ? parsePalette(p.palette) : null;
   const out: Puzzle = {
     format: FORMAT_ID,
     version: FORMAT_VERSION,
@@ -309,6 +338,7 @@ export function toPuzzleObject(p: Puzzle): Puzzle {
     ...(p.author ? { author: p.author } : {}),
     ...(p.description ? { description: p.description } : {}),
     ...(background ? { background } : {}),
+    ...(palette ? { palette } : {}),
     width: p.width,
     height: p.height,
     symmetry: p.symmetry,

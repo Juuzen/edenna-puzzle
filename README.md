@@ -105,6 +105,7 @@ Un tema è solo un insieme di variabili CSS (`--ep-panel`, `--ep-line`, `--ep-pa
   "id": "altrove-b12",
   "title": "Anomalia",
   "background": {"colors":["#eef1f5","#c9d6e8"],"angle":135},
+  "palette": {"line":"#979faa","path":"#256be4","success":"#12816f"},
   "width": 3,
   "height": 3,
   "symmetry": "none",
@@ -156,7 +157,15 @@ due percorsi speculari contemporaneamente; partenze e uscite vengono sempre mess
 
 `background` (facoltativo) colora il pannello al posto del tema: `colors` con un colore (tinta unita) o
 due (gradiente lineare), in formato `#rrggbb`; `angle` in gradi come in CSS (`0` verso l'alto, `90`
-verso destra, `180` verso il basso, default). Bordo, linee e simboli restano quelli del tema.
+verso destra, `180` verso il basso, default).
+
+`palette` (facoltativo, vale solo insieme a `background`) cambia i colori della griglia (`line`, anche
+uscite e cerchio di partenza), del percorso in tracciamento (`path`) e di quello risolto (`success`).
+I simboli restano quelli del tema. Nell'editor ogni colore mostra il contrasto con lo sfondo (nel punto
+peggiore del gradiente) e propone colori consigliati: griglia almeno 2:1 (discreta ma visibile),
+percorsi almeno 3:1 (WCAG 1.4.11) e staccati dalla griglia, percorso risolto distinguibile da quello in
+tracciamento. Gli stessi calcoli sono esportati dal motore: `contrastRatio`, `checkColor`,
+`suggestColors`, `suggestPalette`.
 
 `data` è un oggetto libero che l'editor conserva
 così com'è: utile per collegare il puzzle a stanze, eventi o porte.

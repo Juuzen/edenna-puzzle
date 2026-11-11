@@ -1,5 +1,5 @@
 import { forwardRef, useId, useMemo, type ReactNode, type SVGProps } from 'react';
-import { gradientLine } from './background';
+import { gradientLine, paletteCssVars } from './background';
 import {
   DEFAULT_BACKGROUND_ANGLE,
   type Coord,
@@ -139,6 +139,10 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
         }
       : null;
   const panelFill = gradient ? { fill: `url(#${gradientId})` } : bg ? { fill: bg.colors[0] } : undefined;
+  // Colori di griglia e percorsi: sovrascrivono le variabili del tema, ma
+  // solo se il puzzle ha anche uno sfondo proprio.
+  const paletteVars = bg ? paletteCssVars(puzzle.palette) : undefined;
+  const style = paletteVars ? { ...paletteVars, ...rest.style } : rest.style;
   return (
     <svg
       ref={ref}
@@ -147,6 +151,7 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
       role="img"
       aria-label={label ?? puzzle.title ?? 'Puzzle'}
       {...rest}
+      style={style}
     >
       {gradient && (
         <defs>

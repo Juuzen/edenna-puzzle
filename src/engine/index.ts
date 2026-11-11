@@ -4,3 +4,4 @@ export * from './polyomino';
 export * from './validate';
 export * from './solve';
 export * from './format';
+export * from './color';

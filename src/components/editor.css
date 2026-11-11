@@ -284,6 +284,69 @@
   cursor: pointer;
 }
 .ep-bg__swap { padding: 6px 8px; }
+/* Anteprima: un tratto di griglia e uno di percorso sopra lo sfondo. */
+.ep-bg__preview {
+  position: relative;
+  overflow: hidden;
+}
+.ep-bg__preview i {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 5px;
+  border-radius: 3px;
+}
+.ep-bg__preview i:first-child { top: 8px; }
+.ep-bg__preview i:last-child { bottom: 8px; right: 35%; }
+
+/* Colori di griglia e percorsi */
+.ep-palette { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.ep-palette__row { display: flex; flex-direction: column; gap: 4px; }
+.ep-palette__main { display: flex; align-items: center; gap: 8px; }
+.ep-palette__main input[type='color'] {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--ed-border);
+  border-radius: 6px;
+  background: var(--ed-surface);
+  cursor: pointer;
+  flex: none;
+}
+.ep-palette__label { flex: 1; min-width: 0; font-size: 13px; }
+.ep-palette__reset {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--ed-muted);
+  padding: 0 2px;
+  font-size: 15px;
+}
+.ep-palette__reset:hover { color: var(--ed-text); }
+.ep-contrast {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  cursor: help;
+}
+.ep-contrast--good { background: #dcefe5; color: var(--ed-ok); }
+.ep-contrast--low { background: #fbeccb; color: #7a5600; }
+.ep-contrast--bad { background: #f6dcdf; color: var(--ed-danger); }
+.ep-palette__issue { margin: 0 0 0 42px; font-size: 12px; }
+.ep-palette__issue--low { color: #7a5600; }
+.ep-palette__issue--bad { color: var(--ed-danger); }
+.ep-palette__suggest { display: flex; gap: 6px; margin-left: 42px; }
+.ep-palette__swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  padding: 0;
+}
+.ep-palette__swatch:hover { transform: scale(1.12); }
+.ep-palette__swatch.is-active { box-shadow: 0 0 0 2px var(--ed-surface), 0 0 0 4px var(--ed-accent); }
 .ep-field input[type='range'] { padding: 0; border: 0; background: none; accent-color: var(--ed-accent); }
 
 .ep-note { margin: 0; font-size: 12px; color: var(--ed-muted); }

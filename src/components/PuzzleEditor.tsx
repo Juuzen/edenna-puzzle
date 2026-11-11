@@ -7,8 +7,16 @@ import {
   type Path,
   type Puzzle,
   type PuzzleBackground,
+  type PuzzlePalette,
+  type ColorRole,
+  type ContrastLevel,
+  CONTRAST_TARGETS,
   DEFAULT_BACKGROUND_ANGLE,
+  checkColor,
   normalizeAngle,
+  normalizeHexColor,
+  suggestColors,
+  suggestPalette,
   type SolveResult,
   type Symmetry,
   type ValidationResult,
@@ -155,6 +163,132 @@ const ANGLE_PRESETS: { angle: number; label: string; title: string }[] = [
   { angle: 45, label: '↗', title: 'Diagonale verso l’alto' },
 ];
 
+const PALETTE_ROLES: { role: ColorRole; label: string }[] = [
+  { role: 'line', label: 'Griglia' },
+  { role: 'path', label: 'Tracciamento' },
+  { role: 'success', label: 'Risolto' },
+];
+
+/** Colori correnti del tema, letti dalle variabili CSS di `el`. */
+function readThemeColors(el: Element | null): Required<PuzzlePalette> {
+  const fallback = { line: '#b9c3cf', path: '#1f5fd6', success: '#0f9b8e' };
+  if (!el) return fallback;
+  const css = getComputedStyle(el);
+  const get = (name: string, def: string) => normalizeHexColor(css.getPropertyValue(name)) ?? def;
+  return {
+    line: get('--ep-line', fallback.line),
+    path: get('--ep-path', fallback.path),
+    success: get('--ep-success', fallback.success),
+  };
+}
+
+const LEVEL_TEXT: Record<ContrastLevel, string> = { good: 'Buono', low: 'Basso', bad: 'Insufficiente' };
+
+/**
+ * Colori di griglia e percorsi con contrasto e colori consigliati per lo
+ * sfondo scelto. I suggerimenti si applicano solo con un clic.
+ */
+function PaletteControls({
+  background,
+  palette,
+  themeColors,
+  onChange,
+  settle,
+}: {
+  background: PuzzleBackground;
+  palette?: PuzzlePalette;
+  themeColors: Required<PuzzlePalette>;
+  onChange: (p: PuzzlePalette | undefined, continuous: boolean) => void;
+  settle: { onBlur: () => void; onPointerUp: () => void; onKeyUp: () => void };
+}) {
+  const eff: Required<PuzzlePalette> = { ...themeColors, ...palette };
+  const set = (role: ColorRole, color: string | undefined, continuous: boolean) => {
+    const next: PuzzlePalette = { ...palette };
+    if (color) next[role] = color;
+    else delete next[role];
+    onChange(Object.keys(next).length ? next : undefined, continuous);
+  };
+  const others = (role: ColorRole): PuzzlePalette =>
+    role === 'line' ? {} : role === 'path' ? { line: eff.line } : { line: eff.line, path: eff.path };
+  const rows = PALETTE_ROLES.map((r) => ({
+    ...r,
+    color: eff[r.role],
+    custom: !!palette?.[r.role],
+    check: checkColor(background, r.role, eff[r.role], others(r.role)),
+    suggestions: suggestColors(background, r.role, others(r.role)),
+  }));
+  const problems = rows.filter((r) => r.check.level !== 'good');
+
+  return (
+    <div className="ep-palette">
+      {rows.map((r) => (
+        <div key={r.role} className="ep-palette__row">
+          <div className="ep-palette__main">
+            <input
+              type="color"
+              value={r.color}
+              aria-label={`Colore ${r.label.toLowerCase()}`}
+              onChange={(e) => set(r.role, e.target.value, true)}
+              {...settle}
+            />
+            <span className="ep-palette__label">
+              {r.label}
+              {!r.custom && <span className="ep-muted"> · tema</span>}
+            </span>
+            <span
+              className={`ep-contrast ep-contrast--${r.check.level}`}
+              title={`Contrasto con lo sfondo (nel punto peggiore): ${LEVEL_TEXT[r.check.level].toLowerCase()}. Minimo consigliato ${CONTRAST_TARGETS[r.role].good}:1.`}
+            >
+              {r.check.ratio.toFixed(1)}:1
+            </span>
+            {r.custom && (
+              <button type="button" className="ep-palette__reset" title="Torna al colore del tema" onClick={() => set(r.role, undefined, false)}>
+                ↺
+              </button>
+            )}
+          </div>
+          {r.check.issues.length > 0 && <p className={`ep-palette__issue ep-palette__issue--${r.check.level}`}>{r.check.issues.join(', ')}</p>}
+          <div className="ep-palette__suggest" role="group" aria-label={`Colori consigliati per ${r.label.toLowerCase()}`}>
+            {r.suggestions.map((s) => (
+              <button
+                key={s.color}
+                type="button"
+                className={`ep-palette__swatch${s.color === r.color ? ' is-active' : ''}`}
+                style={{ background: s.color }}
+                title={`${s.color} · contrasto ${s.ratio.toFixed(1)}:1`}
+                aria-label={`Usa ${s.color}`}
+                onClick={() => set(r.role, s.color, false)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+      <div className="ep-row">
+        <button type="button" className="ep-btn" onClick={() => onChange(suggestPalette(background), false)}>
+          Applica consigliati
+        </button>
+        {palette && (
+          <button type="button" className="ep-btn" onClick={() => onChange(undefined, false)}>
+            Colori del tema
+          </button>
+        )}
+      </div>
+      {rows.some((r) => r.suggestions[0]?.level === 'bad') && (
+        <p className="ep-notice ep-notice--error">
+          Lo sfondo passa da molto chiaro a molto scuro: nessun colore si vede bene su tutto il pannello. Avvicina la
+          luminosità dei due colori del gradiente.
+        </p>
+      )}
+      {problems.length > 0 && (
+        <p className="ep-note">
+          Su questo sfondo {problems.map((p) => p.label.toLowerCase()).join(', ')}{' '}
+          {problems.length === 1 ? 'potrebbe non vedersi bene' : 'potrebbero non vedersi bene'}: prova i colori consigliati.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Controlli dello sfondo. `onChange(bg, continuous)`: `continuous` è vero
  * mentre si trascina un selettore, così tutta la regolazione diventa un
@@ -162,13 +296,20 @@ const ANGLE_PRESETS: { angle: number; label: string; title: string }[] = [
  */
 function BackgroundControls({
   value,
+  palette,
+  themeColors,
   onChange,
+  onPaletteChange,
   onSettle,
 }: {
   value?: PuzzleBackground;
+  palette?: PuzzlePalette;
+  themeColors: Required<PuzzlePalette>;
   onChange: (bg: PuzzleBackground | undefined, continuous: boolean) => void;
+  onPaletteChange: (p: PuzzlePalette | undefined, continuous: boolean) => void;
   onSettle: () => void;
 }) {
+  const eff = { ...themeColors, ...palette };
   const kind = !value ? 'theme' : value.colors.length === 1 ? 'solid' : 'gradient';
   const c0 = value?.colors[0] ?? DEFAULT_BG_COLORS[0];
   const c1 = value?.colors[1] ?? DEFAULT_BG_COLORS[1];
@@ -199,7 +340,10 @@ function BackgroundControls({
       </div>
       {value && (
         <div className="ep-bg">
-          <span className="ep-bg__preview" style={{ background: backgroundCss(value) }} aria-hidden />
+          <span className="ep-bg__preview" style={{ background: backgroundCss(value) }} aria-hidden>
+            <i style={{ background: eff.line }} />
+            <i style={{ background: eff.path }} />
+          </span>
           <input
             type="color"
             value={c0}
@@ -255,6 +399,15 @@ function BackgroundControls({
             ))}
           </div>
         </>
+      )}
+      {value && (
+        <PaletteControls
+          background={value}
+          palette={palette}
+          themeColors={themeColors}
+          onChange={onPaletteChange}
+          settle={settle}
+        />
       )}
     </>
   );
@@ -605,18 +758,27 @@ export function PuzzleEditor({
 
   /** Vero mentre si trascina un selettore dello sfondo (stesso passo di annulla). */
   const bgDragging = useRef(false);
-  const setBackground = (bg: PuzzleBackground | undefined, continuous: boolean) => {
-    const next = { ...puzzle };
-    if (bg) next.background = bg;
-    else delete next.background;
+  const setLook = (patch: { background?: PuzzleBackground; palette?: PuzzlePalette }, continuous: boolean) => {
+    const next = { ...puzzle, ...patch };
+    if (!next.background) delete next.background;
+    // Senza sfondo proprio i colori fissi non hanno senso: decide il tema.
+    if (!next.palette || !next.background) delete next.palette;
     commit(next, bgDragging.current);
     bgDragging.current = continuous;
   };
+  const setBackground = (background: PuzzleBackground | undefined, continuous: boolean) =>
+    setLook({ background }, continuous);
+  const setPalette = (palette: PuzzlePalette | undefined, continuous: boolean) => setLook({ palette }, continuous);
+
+  /** Colori del tema attivo, per i controlli di contrasto. */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [themeColors, setThemeColors] = useState<Required<PuzzlePalette>>(() => readThemeColors(null));
+  useEffect(() => setThemeColors(readThemeColors(rootRef.current)), [theme]);
 
   const sizeOptions = Array.from({ length: MAX_SIZE }, (_, i) => i + 1);
 
   return (
-    <div className={`ep-editor ${theme}${className ? ` ${className}` : ''}`}>
+    <div ref={rootRef} className={`ep-editor ${theme}${className ? ` ${className}` : ''}`}>
       {/* ------------------------------------------------ strumenti */}
       <aside className="ep-editor__tools" aria-label="Strumenti">
         {TOOL_GROUPS.map((g) => (
@@ -870,7 +1032,10 @@ export function PuzzleEditor({
               <h3 className="ep-group__title">Sfondo</h3>
               <BackgroundControls
                 value={puzzle.background}
+                palette={puzzle.palette}
+                themeColors={themeColors}
                 onChange={setBackground}
+                onPaletteChange={setPalette}
                 onSettle={() => (bgDragging.current = false)}
               />
             </section>

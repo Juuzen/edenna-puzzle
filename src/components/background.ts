@@ -1,4 +1,24 @@
-import { DEFAULT_BACKGROUND_ANGLE, type PuzzleBackground } from '../engine';
+import type { CSSProperties } from 'react';
+import { DEFAULT_BACKGROUND_ANGLE, type PuzzleBackground, type PuzzlePalette, withAlpha } from '../engine';
+
+/** Variabili CSS del tema che corrispondono ai colori della palette. */
+export function paletteCssVars(p?: PuzzlePalette): CSSProperties | undefined {
+  if (!p) return undefined;
+  const v: Record<string, string> = {};
+  if (p.line) {
+    v['--ep-line'] = p.line;
+    v['--ep-start'] = p.line;
+  }
+  if (p.path) {
+    v['--ep-path'] = p.path;
+    v['--ep-path-glow'] = withAlpha(p.path, 0.4);
+  }
+  if (p.success) {
+    v['--ep-success'] = p.success;
+    v['--ep-success-glow'] = withAlpha(p.success, 0.5);
+  }
+  return Object.keys(v).length ? (v as CSSProperties) : undefined;
+}
 
 export interface GradientLine {
   x1: number;

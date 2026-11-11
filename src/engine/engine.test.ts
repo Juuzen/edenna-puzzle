@@ -437,3 +437,20 @@ describe('raccolte', () => {
     expect(parseCollection(serializePuzzle({ ...base(), title: 'Solo' })).collection.name).toBe('Solo');
   });
 });
+
+describe('palette dei colori', () => {
+  it('andata e ritorno', () => {
+    const p = { ...base(), background: { colors: ['#102030'] as [string] }, palette: { line: '#334455', path: '#ffcc00' } };
+    const { puzzle, warnings } = parsePuzzle(serializePuzzle(p));
+    expect(warnings).toEqual([]);
+    expect(puzzle.palette).toEqual({ line: '#334455', path: '#ffcc00' });
+  });
+
+  it('colori non validi e chiavi sconosciute scartati con avvisi; vuota → omessa', () => {
+    const r = parsePuzzle({ width: 2, height: 2, palette: { line: '#ABC', path: 'blu', glow: '#000000' } });
+    expect(r.puzzle.palette).toEqual({ line: '#aabbcc' });
+    expect(r.warnings.filter((w) => w.startsWith('palette'))).toHaveLength(2);
+    expect(parsePuzzle({ width: 2, height: 2, palette: { path: 'x' } }).puzzle.palette).toBeUndefined();
+    expect(serializePuzzle({ ...base(), palette: {} })).not.toContain('palette');
+  });
+});

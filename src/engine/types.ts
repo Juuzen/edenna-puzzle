@@ -111,6 +111,19 @@ export interface PuzzleBackground {
   angle?: number;
 }
 
+/**
+ * Colori di griglia e percorsi ("#rrggbb"). Valgono solo insieme a
+ * `background`: senza uno sfondo proprio decide il tema.
+ */
+export interface PuzzlePalette {
+  /** Linee della griglia, uscite e cerchio di partenza. */
+  line?: string;
+  /** Percorso mentre si traccia. */
+  path?: string;
+  /** Percorso a soluzione corretta. */
+  success?: string;
+}
+
 export interface PuzzleMeta {
   id?: string;
   title?: string;
@@ -118,6 +131,8 @@ export interface PuzzleMeta {
   description?: string;
   /** Se manca si usa il colore del tema. */
   background?: PuzzleBackground;
+  /** Colori di griglia e percorsi (solo con `background`). */
+  palette?: PuzzlePalette;
   /** Campo libero per l'applicazione che ospita il puzzle (es. Edenna OS). */
   data?: Record<string, unknown>;
 }
