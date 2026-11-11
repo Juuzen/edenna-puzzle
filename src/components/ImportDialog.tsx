@@ -1,14 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ParseResult, PuzzleCollection } from '../engine';
 import { PuzzleBoard } from './PuzzleBoard';
-import {
-  type ConflictPolicy,
-  type ImportDestination,
-  type ImportResult,
-  applyImport,
-  conflictingIds,
-  pickPuzzles,
-} from './collectionOps';
+import { type ImportDestination, type ImportResult, applyImport, pickPuzzles } from './collectionOps';
 
 /** Cosa si sta importando: i puzzle letti e i metadati della raccolta di origine. */
 export interface ImportSource {
@@ -25,30 +18,24 @@ export interface ImportDialogProps {
   target: number;
   onConfirm: (result: ImportResult) => void;
   onCancel: () => void;
-  /** Tema per le miniature. */
-  theme?: string;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** Riassunto leggibile di un import. */
 export function importSummary(r: ImportResult): string {
-  const parts = [plural(r.added, 'puzzle importato', 'puzzle importati')];
-  if (r.renamed) parts.push(plural(r.renamed, 'id rinominato', 'id rinominati'));
-  if (r.overwritten) parts.push(plural(r.overwritten, 'sovrascritto', 'sovrascritti'));
-  if (r.skipped) parts.push(plural(r.skipped, 'saltato', 'saltati'));
-  return `${parts.join(', ')}.`;
+  return `${plural(r.added, 'puzzle importato', 'puzzle importati')}.`;
 }
 
 /**
  * Finestra di importazione: si scelgono i puzzle del file, dove metterli
- * (aggiungere, sostituire, nuova raccolta) e cosa fare con gli id già presenti.
+ * (aggiungere, sostituire, nuova raccolta). I puzzle importati ricevono
+ * sempre id interni nuovi, quindi non possono entrare in conflitto.
  */
-export function ImportDialog({ source, collections, target, onConfirm, onCancel, theme = 'ep-theme-edenna' }: ImportDialogProps) {
+export function ImportDialog({ source, collections, target, onConfirm, onCancel }: ImportDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [destination, setDestination] = useState<ImportDestination>('append');
-  const [onConflict, setOnConflict] = useState<ConflictPolicy>('rename');
   const [name, setName] = useState('');
 
   // Ogni nuova sorgente: tutto selezionato, nome dal file.
@@ -57,7 +44,6 @@ export function ImportDialog({ source, collections, target, onConfirm, onCancel,
     setChecked(new Set(source.results.map((_, i) => i)));
     setName(source.name);
     setDestination(collections.length ? 'append' : 'new');
-    setOnConflict('rename');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source]);
 
@@ -69,12 +55,8 @@ export function ImportDialog({ source, collections, target, onConfirm, onCancel,
   }, [source]);
 
   const current = collections[target];
-  const conflicts = useMemo(
-    () => (source && current ? conflictingIds(current.puzzles, source.results.map((r) => r.puzzle)) : new Set<string>()),
-    [source, current],
-  );
 
-  if (!source) return <dialog ref={ref} className={`ep-import ${theme}`} />;
+  if (!source) return <dialog ref={ref} className="ep-import" />;
 
   const all = source.results;
   const selected = pickPuzzles(
@@ -88,16 +70,15 @@ export function ImportDialog({ source, collections, target, onConfirm, onCancel,
       else n.add(i);
       return n;
     });
-  const selConflicts = selected.filter((p) => p.id && conflicts.has(p.id)).length;
   const warnings = all.reduce((n, r) => n + r.warnings.length, 0);
 
   const confirm = () =>
-    onConfirm(applyImport(collections, target, selected, { destination, onConflict, name: name.trim() || source.name, description: source.description }));
+    onConfirm(applyImport(collections, target, selected, { destination, name: name.trim() || source.name, description: source.description }));
 
   return (
     <dialog
       ref={ref}
-      className={`ep-import ${theme}`}
+      className="ep-import"
       onCancel={(e) => {
         e.preventDefault();
         onCancel();
@@ -132,7 +113,6 @@ export function ImportDialog({ source, collections, target, onConfirm, onCancel,
         <ul className="ep-import__list">
           {all.map((r, i) => {
             const p = r.puzzle;
-            const clash = destination === 'append' && !!p.id && conflicts.has(p.id);
             return (
               <li key={i}>
                 <label className={checked.has(i) ? 'is-on' : ''}>
@@ -141,9 +121,8 @@ export function ImportDialog({ source, collections, target, onConfirm, onCancel,
                   <span className="ep-library__text">
                     <span className="ep-library__title">{p.title || `Puzzle ${i + 1}`}</span>
                     <span className="ep-library__meta">
-                      {p.id ?? '—'} · {p.width}×{p.height}
+                      {p.width}×{p.height}
                     </span>
-                    {clash && <span className="ep-import__badge">id già presente</span>}
                     {r.warnings.length > 0 && (
                       <span className="ep-import__warn" title={r.warnings.join('\n')}>
                         {plural(r.warnings.length, 'avviso', 'avvisi')}
@@ -182,24 +161,6 @@ export function ImportDialog({ source, collections, target, onConfirm, onCancel,
             />
           </label>
         </fieldset>
-
-        {destination === 'append' && selConflicts > 0 && (
-          <fieldset className="ep-import__opts">
-            <legend>{plural(selConflicts, 'id già presente', 'id già presenti')}</legend>
-            {(
-              [
-                ['rename', 'Rinomina i nuovi (es. b12-2)'],
-                ['overwrite', 'Sovrascrivi gli esistenti'],
-                ['skip', 'Salta i nuovi'],
-              ] as const
-            ).map(([k, label]) => (
-              <label key={k}>
-                <input type="radio" checked={onConflict === k} onChange={() => setOnConflict(k)} />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-        )}
 
         {destination === 'replace' && current && (
           <p className="ep-notice ep-notice--error">

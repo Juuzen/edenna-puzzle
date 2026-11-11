@@ -1,9 +1,7 @@
 {
   "format": "edenna-puzzle",
   "version": 1,
-  "id": "cavendish-01",
   "title": "Orientamento",
-  "description": "Quadrati di colore diverso devono finire in regioni diverse.",
   "width": 3,
   "height": 3,
   "symmetry": "none",

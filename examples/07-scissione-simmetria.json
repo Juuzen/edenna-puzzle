@@ -1,9 +1,7 @@
 {
   "format": "edenna-puzzle",
   "version": 1,
-  "id": "scissione-01",
   "title": "Scissione",
-  "description": "Due percorsi speculari: muovi l'Interno, l'Esterno ti segue.",
   "width": 5,
   "height": 5,
   "symmetry": "horizontal",

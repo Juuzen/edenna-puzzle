@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   type Puzzle,
   type PuzzleCollection,
@@ -11,8 +11,6 @@ import { PuzzleBoard } from './PuzzleBoard';
 import { ImportDialog, importSummary, type ImportSource } from './ImportDialog';
 import {
   downloadText,
-  duplicatePuzzle,
-  mergePuzzles,
   moveItem,
   newCollection,
   pickPuzzles,
@@ -20,6 +18,7 @@ import {
   replaceAt,
   slugify,
   uniqueName,
+  withFreshIds,
 } from './collectionOps';
 
 export interface LibraryPosition {
@@ -37,8 +36,6 @@ export interface PuzzleLibraryProps {
   newPuzzle?: () => Puzzle;
   /** Mostra un ✓ accanto ai puzzle risolti. */
   isSolved?: (p: Puzzle, index: number) => boolean;
-  /** Tema delle miniature. */
-  theme?: string;
   className?: string;
 }
 
@@ -60,7 +57,6 @@ export function PuzzleLibrary({
   onActiveChange,
   newPuzzle = () => createPuzzle(4, 4),
   isSolved,
-  theme = 'ep-theme-edenna',
   className,
 }: PuzzleLibraryProps) {
   const ci = Math.max(0, Math.min(active.collection, collections.length - 1));
@@ -94,8 +90,9 @@ export function PuzzleLibrary({
   };
   const duplicateCollection = () => {
     if (!col) return;
-    const { id: _id, ...rest } = col;
-    const c = { ...rest, name: uniqueName(`${col.name} (copia)`, collections.map((x) => x.name)) };
+    // Raccolta e puzzle ricevono id nuovi: la copia non condivide nulla con l'originale.
+    const c = newCollection(`${col.name} (copia)`, collections, col.puzzles);
+    if (col.description) c.description = col.description;
     onChange([...collections, c]);
     go(collections.length, pi);
   };
@@ -117,15 +114,16 @@ export function PuzzleLibrary({
 
   // --- puzzle
   const addPuzzle = () => {
-    setPuzzles([...puzzles, newPuzzle()]);
+    setPuzzles([...puzzles, ...withFreshIds([newPuzzle()], collections)]);
     go(ci, puzzles.length);
   };
-  const duplicate = () => {
-    if (!puzzles[pi]) return;
+  /** Duplica il puzzle `i` subito sotto di sé e seleziona la copia. */
+  const duplicate = (i = pi) => {
+    if (!puzzles[i]) return;
     const list = [...puzzles];
-    list.splice(pi + 1, 0, duplicatePuzzle(puzzles[pi], puzzles));
+    list.splice(i + 1, 0, ...withFreshIds([puzzles[i]], collections));
     setPuzzles(list);
-    go(ci, pi + 1);
+    go(ci, i + 1);
   };
   const move = (delta: number) => {
     const j = pi + delta;
@@ -133,12 +131,35 @@ export function PuzzleLibrary({
     setPuzzles(moveItem(puzzles, pi, j));
     go(ci, j);
   };
-  const removePuzzle = () => {
-    const p = puzzles[pi];
+  /** Elimina il puzzle `i` (con conferma); la selezione resta sullo stesso puzzle se possibile. */
+  const removePuzzle = (i = pi) => {
+    const p = puzzles[i];
     if (!p || puzzles.length <= 1) return;
-    if (!confirm(`Eliminare «${p.title || 'senza titolo'}» dalla raccolta?`)) return;
-    setPuzzles(removeAt(puzzles, pi));
-    go(ci, Math.max(0, pi - 1));
+    if (!confirm(`Eliminare «${p.title || `Puzzle ${i + 1}`}» dalla raccolta?`)) return;
+    setPuzzles(removeAt(puzzles, i));
+    go(ci, i < pi ? pi - 1 : i === pi ? Math.max(0, Math.min(pi, puzzles.length - 2)) : pi);
+  };
+
+  // --- menu "⋯" delle righe
+  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (menuFor === null) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !menuRef.current?.contains(e.target as Node)) setMenuFor(null);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [menuFor]);
+  // Cambiando raccolta o modalità il menu si chiude.
+  useEffect(() => setMenuFor(null), [ci, selecting]);
+  const menuAction = (fn: () => void) => () => {
+    setMenuFor(null);
+    fn();
   };
 
   // --- selezione multipla
@@ -163,9 +184,9 @@ export function PuzzleLibrary({
   const copySelectedTo = (target: number) => {
     const dest = collections[target];
     if (!dest) return;
-    const r = mergePuzzles(dest.puzzles, pickPuzzles(puzzles, selected), { mode: 'append', onConflict: 'rename' });
-    onChange(replaceAt(collections, target, { ...dest, puzzles: r.puzzles }));
-    flash(`${r.added} puzzle copiati in «${dest.name}».`);
+    const copies = withFreshIds(pickPuzzles(puzzles, selected), collections);
+    onChange(replaceAt(collections, target, { ...dest, puzzles: [...dest.puzzles, ...copies] }));
+    flash(`${copies.length} puzzle copiati in «${dest.name}».`);
   };
 
   // --- import / export
@@ -191,7 +212,7 @@ export function PuzzleLibrary({
   const others = collections.map((c, i) => ({ c, i })).filter((x) => x.i !== ci);
 
   return (
-    <aside className={`ep-library ${theme}${className ? ` ${className}` : ''}`} aria-label="Raccolte">
+    <aside className={`ep-library${className ? ` ${className}` : ''}`} aria-label="Raccolte">
       {/* ---------------------------------------------- raccolta attiva */}
       <div className="ep-library__head">
         {renaming !== null ? (
@@ -218,7 +239,7 @@ export function PuzzleLibrary({
             }}
           >
             {collections.map((c, i) => (
-              <option key={i} value={i}>
+              <option key={c.id ?? i} value={i}>
                 {c.name} ({c.puzzles.length})
               </option>
             ))}
@@ -243,6 +264,11 @@ export function PuzzleLibrary({
       {/* ---------------------------------------------- lista */}
       <div className="ep-library__bar">
         <span>{puzzles.length} puzzle</span>
+        {!selecting && (
+          <button type="button" onClick={addPuzzle} title={`Nuovo puzzle in «${col?.name ?? ''}»`} disabled={!col}>
+            + Puzzle
+          </button>
+        )}
         <button
           type="button"
           className={selecting ? 'is-active' : ''}
@@ -275,7 +301,7 @@ export function PuzzleLibrary({
             >
               <option value="">Copia in…</option>
               {others.map(({ c, i }) => (
-                <option key={i} value={i}>
+                <option key={c.id ?? i} value={i}>
                   {c.name}
                 </option>
               ))}
@@ -288,10 +314,10 @@ export function PuzzleLibrary({
       )}
       <ol className="ep-library__list">
         {puzzles.map((p, i) => (
-          <li key={i}>
+          <li key={p.id ?? i} className="ep-library__item">
             <button
               type="button"
-              className={`${i === pi ? 'is-active' : ''}${selecting && selected.has(i) ? ' is-selected' : ''}`}
+              className={`ep-library__open${i === pi ? ' is-active' : ''}${selecting && selected.has(i) ? ' is-selected' : ''}`}
               onClick={() => (selecting ? toggle(i) : go(ci, i))}
               aria-pressed={selecting ? selected.has(i) : undefined}
             >
@@ -300,22 +326,66 @@ export function PuzzleLibrary({
               <span className="ep-library__text">
                 <span className="ep-library__title">{p.title || `Puzzle ${i + 1}`}</span>
                 <span className="ep-library__meta">
-                  {p.id ?? '—'} · {p.width}×{p.height}
+                  {p.width}×{p.height}
                   {isSolved?.(p, i) ? ' · ✓' : ''}
                 </span>
               </span>
             </button>
+            {!selecting && (
+              <div className="ep-library__more" ref={menuFor === i ? menuRef : undefined}>
+                <button
+                  type="button"
+                  className={`ep-library__more-btn${menuFor === i ? ' is-open' : ''}`}
+                  aria-label={`Azioni per «${p.title || `Puzzle ${i + 1}`}»`}
+                  aria-haspopup="menu"
+                  aria-expanded={menuFor === i}
+                  onClick={() => setMenuFor(menuFor === i ? null : i)}
+                >
+                  ⋯
+                </button>
+                {menuFor === i && (
+                  <div
+                    role="menu"
+                    className={`ep-library__menu${i >= 2 && i >= puzzles.length - 2 ? ' ep-library__menu--up' : ''}`}
+                  >
+                    <button type="button" role="menuitem" autoFocus onClick={menuAction(() => duplicate(i))}>
+                      Duplica
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="is-danger"
+                      disabled={puzzles.length <= 1}
+                      title={puzzles.length <= 1 ? 'Una raccolta deve avere almeno un puzzle' : undefined}
+                      onClick={menuAction(() => removePuzzle(i))}
+                    >
+                      Elimina
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </li>
         ))}
+        {!selecting && col && (
+          <li>
+            <button type="button" className="ep-library__add" onClick={addPuzzle}>
+              <span className="ep-library__add-icon" aria-hidden>
+                +
+              </span>
+              <span className="ep-library__title">Nuovo puzzle</span>
+            </button>
+          </li>
+        )}
       </ol>
 
       {/* ---------------------------------------------- azioni */}
       {!selecting && (
         <div className="ep-library__actions">
-          <button type="button" onClick={addPuzzle}>
-            + Nuovo
+          <button type="button" onClick={addPuzzle} disabled={!col}>
+            + Nuovo puzzle
           </button>
-          <button type="button" onClick={duplicate} disabled={!puzzles.length}>
+          <button type="button" onClick={() => duplicate()} disabled={!puzzles.length}>
             Duplica
           </button>
           <button type="button" onClick={() => move(-1)} disabled={pi <= 0} title="Sposta su">
@@ -324,7 +394,7 @@ export function PuzzleLibrary({
           <button type="button" onClick={() => move(1)} disabled={pi >= puzzles.length - 1} title="Sposta giù">
             ↓
           </button>
-          <button type="button" onClick={removePuzzle} disabled={puzzles.length <= 1} className="is-danger">
+          <button type="button" onClick={() => removePuzzle()} disabled={puzzles.length <= 1} className="is-danger">
             Elimina
           </button>
         </div>
@@ -350,7 +420,6 @@ export function PuzzleLibrary({
         source={importing}
         collections={collections}
         target={ci}
-        theme={theme}
         onCancel={() => setImporting(null)}
         onConfirm={(r) => {
           setImporting(null);

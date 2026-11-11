@@ -1,9 +1,7 @@
 {
   "format": "edenna-puzzle",
   "version": 1,
-  "id": "cavendish-02",
   "title": "Conteggio",
-  "description": "I triangoli dicono quanti lati della loro cella il percorso deve toccare.",
   "width": 3,
   "height": 3,
   "symmetry": "none",

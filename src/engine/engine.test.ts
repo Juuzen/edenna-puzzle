@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   createPuzzle,
-  decodeWindmillCode,
-  encodeWindmillCode,
   endDirection,
   fitPolyominoes,
   indexPuzzle,
@@ -37,52 +35,6 @@ function withCells(p: Puzzle, cells: CellItem[]): Puzzle {
 }
 
 // ---------------------------------------------------------------------------
-
-describe('codici legacy di The Windmill', () => {
-  // Generato con protobuf.js 5.0.1 e grid.proto del progetto originale,
-  // replicando Grid.getHash (RLE delle celle vuote).
-  const REF =
-    'CAcSAigGEgIIBBIAEgQIBxACEgIIBhIECAgQCRICKAUSAggGEgIoBRIECAswAxIAEgIIChIAEg4ICSIKCAISBAEBAAEYARICCAESAggDEgIoAhICCAUSAigDGAI=_0';
-
-  it('decodifica un codice prodotto dall’implementazione originale', () => {
-    const p = decodeWindmillCode(REF);
-    expect(p.width).toBe(3);
-    expect(p.height).toBe(2);
-    expect(p.symmetry).toBe('horizontal');
-    const pts = p.points.map((x) => `${x.type}@${x.x},${x.y}`).sort();
-    // La simmetria orizzontale aggiunge le gemelle di partenza e uscita.
-    expect(pts).toEqual(['end@0,0', 'end@3,0', 'hexagon@1,1', 'start@0,2', 'start@3,2'].sort());
-    expect(p.edges).toEqual(
-      expect.arrayContaining([
-        { x: 1, y: 0, dir: 'v', type: 'hexagon' },
-        { x: 1, y: 2, dir: 'h', type: 'gap' },
-        { x: 3, y: 1, dir: 'v', type: 'missing' },
-      ]),
-    );
-    const cells = Object.fromEntries(p.cells.map((c) => [`${c.x},${c.y}`, c]));
-    expect(cells['0,0']).toMatchObject({ type: 'square', color: 'white' });
-    expect(cells['1,0']).toMatchObject({ type: 'star', color: 'orange' });
-    expect(cells['0,1']).toMatchObject({ type: 'triangle', count: 3 });
-    expect(cells['1,1']).toMatchObject({ type: 'eliminator' });
-    expect(cells['2,1']).toMatchObject({ type: 'polyomino', shape: ['##', '.#'], rotatable: true });
-  });
-
-  it('accetta anche un URL', () => {
-    expect(decodeWindmillCode(`https://example.com/play/${REF}`).width).toBe(3);
-  });
-
-  it('andata e ritorno encode → decode', () => {
-    const p = decodeWindmillCode(REF);
-    const again = decodeWindmillCode(encodeWindmillCode(p));
-    const strip = (x: Puzzle) => serializePuzzle({ ...x, data: undefined });
-    expect(strip(again)).toBe(strip(p));
-  });
-
-  it('rifiuta codici non validi', () => {
-    expect(() => decodeWindmillCode('abc')).toThrow();
-    expect(() => decodeWindmillCode('AAAA_0')).toThrow();
-  });
-});
 
 describe('formato JSON', () => {
   it('andata e ritorno serialize → parse', () => {

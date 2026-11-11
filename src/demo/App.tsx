@@ -4,12 +4,13 @@ import {
   PuzzleEditor,
   PuzzleLibrary,
   PuzzlePlayer,
+  allPuzzleIds,
   backgroundCss,
-  newCollection,
+  ensureIds,
   parseCollection,
   parsePuzzle,
   parsePuzzleSet,
-  replaceAt,
+  replacePuzzleById,
   serializeCollection,
   type ImportSource,
   type LibraryPosition,
@@ -31,7 +32,12 @@ const LEGACY_KEY = 'edenna-puzzle:library';
 
 const examplesCollection = (): PuzzleCollection => ({ name: EXAMPLES_NAME, puzzles: EXAMPLES });
 
+/** Raccolte salvate, con gli id interni garantiti (assegnati se mancano). */
 function loadCollections(): PuzzleCollection[] {
+  return ensureIds(readCollections());
+}
+
+function readCollections(): PuzzleCollection[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -66,18 +72,12 @@ function saveCollections(list: PuzzleCollection[]) {
   }
 }
 
-const THEMES = [
-  { id: 'ep-theme-edenna', label: 'Edenna (chiaro)' },
-  { id: 'ep-theme-edenna-dark', label: 'Edenna (scuro)' },
-  { id: 'ep-theme-classic', label: 'Classico' },
-];
-
 export function App() {
   const [collections, setCollections] = useState<PuzzleCollection[]>(loadCollections);
   const [active, setActive] = useState<LibraryPosition>({ collection: 0, puzzle: 0 });
   const [view, setView] = useState<'edit' | 'play'>('edit');
-  const [theme, setTheme] = useState(THEMES[0].id);
-  const [solved, setSolved] = useState<Set<Puzzle>>(new Set());
+  /** Id dei puzzle risolti in questa sessione. */
+  const [solved, setSolved] = useState<Set<string>>(new Set());
   const [playKey, setPlayKey] = useState(0);
   /** Raccolta incollata nell'editor (scheda JSON) in attesa di conferma. */
   const [pasted, setPasted] = useState<ImportSource | null>(null);
@@ -89,10 +89,20 @@ export function App() {
 
   useEffect(() => saveCollections(collections), [collections]);
 
-  const update = (p: Puzzle) =>
-    setCollections((list) =>
-      replaceAt(list, ci, { ...list[ci], puzzles: replaceAt(list[ci].puzzles, pi, p) }),
-    );
+  // I puzzle eliminati non restano segnati come risolti (gli id possono essere riusati).
+  useEffect(() => {
+    const ids = new Set(allPuzzleIds(collections));
+    setSolved((s) => ([...s].every((id) => ids.has(id)) ? s : new Set([...s].filter((id) => ids.has(id)))));
+  }, [collections]);
+
+  /** Ogni modifica passa da qui: gli id interni restano sempre presenti e univoci. */
+  const changeCollections = (list: PuzzleCollection[]) => setCollections(ensureIds(list));
+
+  // L'editor emette il puzzle modificato: si aggiorna quello con lo stesso id,
+  // ovunque sia, mai "quello selezionato adesso".
+  const update = (p: Puzzle) => setCollections((list) => replacePuzzleById(list, p));
+
+  const isSolved = (p: Puzzle) => !!p.id && solved.has(p.id);
 
   const playNext = (delta: number) => {
     const n = col.puzzles.length;
@@ -100,26 +110,10 @@ export function App() {
     setPlayKey((k) => k + 1);
   };
 
-  const restoreExamples = () => {
-    const i = collections.findIndex((c) => c.name === EXAMPLES_NAME);
-    const msg =
-      i >= 0
-        ? `Ripristinare la raccolta «${EXAMPLES_NAME}» con gli esempi originali?`
-        : `Aggiungere la raccolta «${EXAMPLES_NAME}» con gli esempi originali?`;
-    if (!confirm(msg)) return;
-    if (i >= 0) {
-      setCollections(replaceAt(collections, i, examplesCollection()));
-      setActive({ collection: i, puzzle: 0 });
-    } else {
-      setCollections([...collections, newCollection(EXAMPLES_NAME, collections, EXAMPLES)]);
-      setActive({ collection: collections.length, puzzle: 0 });
-    }
-  };
-
   const label = (p: Puzzle, i: number) => p.title || `Puzzle ${i + 1}`;
 
   return (
-    <div className={`app ${theme}`}>
+    <div className="app">
       <header className="app-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden>
@@ -142,29 +136,15 @@ export function App() {
             Gioca
           </button>
         </nav>
-        <button className="app-restore" onClick={restoreExamples}>
-          Ripristina esempi
-        </button>
-        <label className="app-theme">
-          <span>Tema</span>
-          <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-            {THEMES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
       </header>
 
       <div className="app-body">
         <PuzzleLibrary
           collections={collections}
-          onChange={setCollections}
+          onChange={changeCollections}
           active={{ collection: ci, puzzle: pi }}
           onActiveChange={setActive}
-          isSolved={(p) => solved.has(p)}
-          theme={theme}
+          isSolved={isSolved}
         />
 
         <main className="app-main">
@@ -175,7 +155,6 @@ export function App() {
               onImportSet={(puzzles) =>
                 setPasted({ name: 'Incollata', results: puzzles.map((puzzle) => ({ puzzle, warnings: [] })) })
               }
-              theme={theme}
             />
           ) : (
             <div className="play" style={current.background ? { background: backgroundCss(current.background) } : undefined}>
@@ -185,21 +164,19 @@ export function App() {
                 </button>
                 <div>
                   <h1>{label(current, pi)}</h1>
-                  {current.description && <p>{current.description}</p>}
                 </div>
                 <button onClick={() => playNext(1)} aria-label="Successivo">
                   ›
                 </button>
               </div>
               <PuzzlePlayer
-                key={`${ci}-${pi}-${playKey}`}
+                key={`${current.id ?? `${ci}-${pi}`}-${playKey}`}
                 puzzle={current}
-                theme={theme}
                 className="play-board"
-                onSolve={() => setSolved((s) => new Set(s).add(current))}
+                onSolve={() => current.id && setSolved((s) => new Set(s).add(current.id!))}
               />
               <div className="play-foot">
-                {solved.has(current) ? (
+                {isSolved(current) ? (
                   <>
                     <span className="ok">Completato.</span>
                     <button onClick={() => setPlayKey((k) => k + 1)}>Ricomincia</button>
@@ -218,11 +195,10 @@ export function App() {
         source={pasted}
         collections={collections}
         target={ci}
-        theme={theme}
         onCancel={() => setPasted(null)}
         onConfirm={(r) => {
           setPasted(null);
-          setCollections(r.collections);
+          changeCollections(r.collections);
           setActive({ collection: r.collection, puzzle: Math.max(0, r.puzzles.length - r.added) });
         }}
       />

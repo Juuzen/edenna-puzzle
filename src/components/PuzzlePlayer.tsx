@@ -44,8 +44,6 @@ export interface PuzzlePlayerProps {
   captureRadius?: number;
   /** Durata (ms) della dissolvenza quando un percorso viene abbandonato. Default: 400. */
   cancelFadeMs?: number;
-  /** Tema: classe CSS applicata (vedi theme.css). Default: "ep-theme-edenna". */
-  theme?: string;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -74,7 +72,6 @@ export function PuzzlePlayer({
   failureDisplayMs = 1600,
   captureRadius = CAPTURE_RADIUS,
   cancelFadeMs = 400,
-  theme = 'ep-theme-edenna',
   className,
   style,
 }: PuzzlePlayerProps) {
@@ -261,7 +258,7 @@ export function PuzzlePlayer({
   };
 
   return (
-    <div className={`ep-player ${theme}${className ? ` ${className}` : ''}`} style={style}>
+    <div className={`ep-player${className ? ` ${className}` : ''}`} style={style}>
       <PuzzleBoard
         ref={svgRef}
         puzzle={puzzle}

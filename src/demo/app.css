@@ -74,35 +74,6 @@ button {
   background: #f2c230;
   color: #2a2100;
 }
-.app-restore {
-  margin-left: auto;
-  border: 1px solid #3a3e46;
-  background: transparent;
-  color: #c9c5ba;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.app-restore:hover {
-  color: #fff;
-}
-.app-theme {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #a7a398;
-}
-.app-theme select {
-  background: #2a2d34;
-  color: #f1efe8;
-  border: 1px solid #3a3e46;
-  border-radius: 6px;
-  padding: 4px 6px;
-  font: inherit;
-}
-
 .app-body {
   flex: 1;
   min-height: 0;
@@ -127,10 +98,6 @@ button {
   gap: 12px;
   background: var(--ep-panel);
   transition: background 0.3s;
-}
-.ep-theme-edenna-dark .play,
-.ep-theme-classic .play {
-  color: #e9e7df;
 }
 .play-head {
   display: grid;

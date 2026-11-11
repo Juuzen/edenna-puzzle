@@ -1,9 +1,7 @@
 {
   "format": "edenna-puzzle",
   "version": 1,
-  "id": "altrove-01",
   "title": "Anomalia",
-  "description": "L'eliminatore annulla un simbolo fuori posto nella sua regione.",
   "width": 3,
   "height": 3,
   "symmetry": "none",

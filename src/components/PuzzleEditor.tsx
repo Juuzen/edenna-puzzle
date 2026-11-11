@@ -24,9 +24,7 @@ import {
   createPuzzle,
   endDirection,
   getPoint,
-  encodeWindmillCode,
   indexPuzzle,
-  parsePuzzle,
   parsePuzzleSet,
   resizePuzzle,
   serializePuzzle,
@@ -46,9 +44,11 @@ import {
   emptyShape,
   hitTest,
   isAlreadyThere,
+  keepId,
   nextEndDirection,
   pickEndDirection,
   shapeFromRows,
+  shouldReset,
   targetKey,
   toolCellItem,
   toolTargets,
@@ -71,8 +71,6 @@ export interface PuzzleEditorProps {
    * handler viene caricato solo il primo.
    */
   onImportSet?: (puzzles: Puzzle[]) => void;
-  /** Tema della board. */
-  theme?: string;
   className?: string;
 }
 
@@ -169,7 +167,7 @@ const PALETTE_ROLES: { role: ColorRole; label: string }[] = [
   { role: 'success', label: 'Risolto' },
 ];
 
-/** Colori correnti del tema, letti dalle variabili CSS di `el`. */
+/** Colori predefiniti, letti dalle variabili CSS di `el`. */
 function readThemeColors(el: Element | null): Required<PuzzlePalette> {
   const fallback = { line: '#b9c3cf', path: '#1f5fd6', success: '#0f9b8e' };
   if (!el) return fallback;
@@ -233,7 +231,7 @@ function PaletteControls({
             />
             <span className="ep-palette__label">
               {r.label}
-              {!r.custom && <span className="ep-muted"> · tema</span>}
+              {!r.custom && <span className="ep-muted"> · predefinito</span>}
             </span>
             <span
               className={`ep-contrast ep-contrast--${r.check.level}`}
@@ -242,7 +240,7 @@ function PaletteControls({
               {r.check.ratio.toFixed(1)}:1
             </span>
             {r.custom && (
-              <button type="button" className="ep-palette__reset" title="Torna al colore del tema" onClick={() => set(r.role, undefined, false)}>
+              <button type="button" className="ep-palette__reset" title="Torna al colore predefinito" onClick={() => set(r.role, undefined, false)}>
                 ↺
               </button>
             )}
@@ -269,7 +267,7 @@ function PaletteControls({
         </button>
         {palette && (
           <button type="button" className="ep-btn" onClick={() => onChange(undefined, false)}>
-            Colori del tema
+            Colori predefiniti
           </button>
         )}
       </div>
@@ -310,12 +308,12 @@ function BackgroundControls({
   onSettle: () => void;
 }) {
   const eff = { ...themeColors, ...palette };
-  const kind = !value ? 'theme' : value.colors.length === 1 ? 'solid' : 'gradient';
+  const kind = !value ? 'default' : value.colors.length === 1 ? 'solid' : 'gradient';
   const c0 = value?.colors[0] ?? DEFAULT_BG_COLORS[0];
   const c1 = value?.colors[1] ?? DEFAULT_BG_COLORS[1];
   const angle = value?.angle ?? DEFAULT_BACKGROUND_ANGLE;
   const make = (k: typeof kind, a = c0, b = c1, ang = angle): PuzzleBackground | undefined =>
-    k === 'theme'
+    k === 'default'
       ? undefined
       : k === 'solid'
         ? { colors: [a] }
@@ -328,7 +326,7 @@ function BackgroundControls({
       <div className="ep-seg ep-seg--full">
         {(
           [
-            ['theme', 'Tema'],
+            ['default', 'Predefinito'],
             ['solid', 'Colore'],
             ['gradient', 'Gradiente'],
           ] as const
@@ -481,7 +479,6 @@ export function PuzzleEditor({
   value,
   onChange,
   onImportSet,
-  theme = 'ep-theme-edenna',
   className,
 }: PuzzleEditorProps) {
   const history = useHistory(value ?? defaultValue ?? createPuzzle(4, 4));
@@ -503,11 +500,19 @@ export function PuzzleEditor({
   const fileRef = useRef<HTMLInputElement>(null);
   const lastEmitted = useRef<Puzzle | null>(null);
 
-  // Valore controllato cambiato dall'esterno → ricarica.
+  // Valore controllato cambiato dall'esterno (altro puzzle o modifica non
+  // fatta qui) → ricarica e scarta tutto ciò che riguardava il precedente.
   useEffect(() => {
-    if (value && value !== lastEmitted.current && value !== puzzle) {
+    if (value && shouldReset(value, puzzle, lastEmitted.current)) {
       history.reset(value);
+      lastEmitted.current = value;
+      paint.current = null;
+      bgDragging.current = false;
+      setHover(null);
       setSolveState({ running: false, show: false });
+      setTestResult(null);
+      setJsonDraft(null);
+      setJsonKey((k) => k + 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
@@ -533,7 +538,8 @@ export function PuzzleEditor({
     return () => window.clearTimeout(t);
   }, [notice]);
 
-  const commit = (p: Puzzle, coalesce = false) => history.push(p, coalesce);
+  /** Ogni modifica mantiene l'id del puzzle (anche importando o svuotando). */
+  const commit = (p: Puzzle, coalesce = false) => history.push(keepId(p, puzzle.id), coalesce);
 
   // --- scorciatoie
   useEffect(() => {
@@ -674,7 +680,7 @@ export function PuzzleEditor({
 
   const loadText = (text: string) => {
     try {
-      const set = parsePuzzleSet(text.trim().endsWith('_0') ? JSON.stringify(parsePuzzle(text).puzzle) : text);
+      const set = parsePuzzleSet(text);
       const warnings = set.flatMap((r) => r.warnings);
       if (set.length > 1 && onImportSet) {
         onImportSet(set.map((r) => r.puzzle));
@@ -701,15 +707,6 @@ export function PuzzleEditor({
     if (!f) return;
     loadText(await f.text());
     if (fileRef.current) fileRef.current.value = '';
-  };
-
-  const copy = async (text: string, what: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      flash(`${what} copiato negli appunti.`, 'ok');
-    } catch {
-      flash('Impossibile accedere agli appunti.', 'error');
-    }
   };
 
   // --- solver
@@ -770,15 +767,15 @@ export function PuzzleEditor({
     setLook({ background }, continuous);
   const setPalette = (palette: PuzzlePalette | undefined, continuous: boolean) => setLook({ palette }, continuous);
 
-  /** Colori del tema attivo, per i controlli di contrasto. */
+  /** Colori predefiniti, per i controlli di contrasto. */
   const rootRef = useRef<HTMLDivElement>(null);
   const [themeColors, setThemeColors] = useState<Required<PuzzlePalette>>(() => readThemeColors(null));
-  useEffect(() => setThemeColors(readThemeColors(rootRef.current)), [theme]);
+  useEffect(() => setThemeColors(readThemeColors(rootRef.current)), []);
 
   const sizeOptions = Array.from({ length: MAX_SIZE }, (_, i) => i + 1);
 
   return (
-    <div ref={rootRef} className={`ep-editor ${theme}${className ? ` ${className}` : ''}`}>
+    <div ref={rootRef} className={`ep-editor${className ? ` ${className}` : ''}`}>
       {/* ------------------------------------------------ strumenti */}
       <aside className="ep-editor__tools" aria-label="Strumenti">
         {TOOL_GROUPS.map((g) => (
@@ -937,7 +934,6 @@ export function PuzzleEditor({
             <PuzzlePlayer
               key={json}
               puzzle={puzzle}
-              theme=""
               lockOnSolve={false}
               onSolve={(r: ValidationResult) =>
                 setTestResult(r.eliminated.length ? `Risolto (con ${r.eliminated.length} simboli eliminati).` : 'Risolto!')
@@ -980,18 +976,6 @@ export function PuzzleEditor({
               <label className="ep-field">
                 <span>Titolo</span>
                 <input value={puzzle.title ?? ''} onChange={(e) => setMeta({ title: e.target.value })} />
-              </label>
-              <label className="ep-field">
-                <span>ID</span>
-                <input value={puzzle.id ?? ''} placeholder="es. altrove-b12" onChange={(e) => setMeta({ id: e.target.value })} />
-              </label>
-              <label className="ep-field">
-                <span>Autore</span>
-                <input value={puzzle.author ?? ''} onChange={(e) => setMeta({ author: e.target.value })} />
-              </label>
-              <label className="ep-field">
-                <span>Note</span>
-                <textarea rows={2} value={puzzle.description ?? ''} onChange={(e) => setMeta({ description: e.target.value })} />
               </label>
             </section>
 
@@ -1070,17 +1054,11 @@ export function PuzzleEditor({
             <section className="ep-group">
               <h3 className="ep-group__title">File</h3>
               <div className="ep-row ep-row--wrap">
-                <button type="button" className="ep-btn ep-btn--primary" onClick={() => downloadText(`${slugify(puzzle.id || puzzle.title)}.json`, json)}>
+                <button type="button" className="ep-btn ep-btn--primary" onClick={() => downloadText(`${slugify(puzzle.title)}.json`, json)}>
                   Esporta JSON
                 </button>
                 <button type="button" className="ep-btn" onClick={() => fileRef.current?.click()}>
                   Importa…
-                </button>
-                <button type="button" className="ep-btn" onClick={() => copy(json, 'JSON')}>
-                  Copia JSON
-                </button>
-                <button type="button" className="ep-btn" onClick={() => copy(encodeWindmillCode(puzzle), 'Codice Windmill')}>
-                  Copia codice Windmill
                 </button>
                 <button
                   type="button"
@@ -1098,7 +1076,7 @@ export function PuzzleEditor({
                 onChange={(e) => onFile(e.target.files?.[0])}
               />
               <p className="ep-note">
-                Si importano file JSON (singoli o raccolte) e codici/URL di The Windmill: incollali nella scheda JSON.
+                Si importano file JSON, con un solo puzzle o con una raccolta.
               </p>
             </section>
           </>
@@ -1138,7 +1116,7 @@ export function PuzzleEditor({
                 Ripristina
               </button>
             </div>
-            <p className="ep-note">Modifica il JSON a mano oppure incolla un codice/URL di The Windmill, poi «Applica».</p>
+            <p className="ep-note">Modifica il JSON a mano oppure incolla quello di un altro puzzle, poi «Applica».</p>
             {notice && <p className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</p>}
           </section>
         )}

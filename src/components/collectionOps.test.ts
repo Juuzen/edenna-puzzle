@@ -3,19 +3,22 @@ import { createPuzzle, type Puzzle, type PuzzleCollection } from '../engine';
 import { gradientLine } from './background';
 import {
   applyImport,
-  conflictingIds,
-  duplicatePuzzle,
-  mergePuzzles,
+  ensureIds,
+  findPuzzle,
   moveItem,
+  newCollection,
+  nextId,
   pickPuzzles,
   removeAt,
+  replacePuzzleById,
   slugify,
-  uniqueId,
   uniqueName,
+  withFreshIds,
 } from './collectionOps';
 
 const P = (id?: string, title?: string): Puzzle => ({ ...createPuzzle(2, 2), ...(id ? { id } : {}), ...(title ? { title } : {}) });
 const idsOf = (l: Puzzle[]) => l.map((p) => p.id ?? '-');
+const C = (id: string | undefined, name: string, puzzles: Puzzle[]): PuzzleCollection => ({ ...(id ? { id } : {}), name, puzzles });
 
 describe('operazioni sulle liste', () => {
   it('moveItem, removeAt e pickPuzzles', () => {
@@ -29,14 +32,9 @@ describe('operazioni sulle liste', () => {
     expect(pickPuzzles(['a', 'b', 'c', 'd'], [3, 0])).toEqual(['a', 'd']);
   });
 
-  it('id e nomi univoci', () => {
-    expect(uniqueId('b12', [])).toBe('b12');
-    expect(uniqueId('b12', ['b12'])).toBe('b12-2');
-    expect(uniqueId('b12', ['b12', 'b12-2'])).toBe('b12-3');
-    expect(uniqueId('b12-2', ['b12-2'])).toBe('b12-3');
+  it('nomi univoci', () => {
+    expect(uniqueName('Stanza', [])).toBe('Stanza');
     expect(uniqueName('Stanza', ['Stanza', 'Stanza (2)'])).toBe('Stanza (3)');
-    expect(duplicatePuzzle(P('x'), [P('x'), P('x-copia')]).id).toBe('x-copia-2');
-    expect(duplicatePuzzle(P(), []).id).toBeUndefined();
   });
 
   it('slugify', () => {
@@ -45,63 +43,86 @@ describe('operazioni sulle liste', () => {
   });
 });
 
-describe('mergePuzzles', () => {
-  const existing = [P('a', 'A1'), P('b', 'B1'), P()];
-  const incoming = [P('b', 'B2'), P('c'), P()];
-
-  it('append + rename', () => {
-    const r = mergePuzzles(existing, incoming, { mode: 'append', onConflict: 'rename' });
-    expect(idsOf(r.puzzles)).toEqual(['a', 'b', '-', 'b-2', 'c', '-']);
-    expect([r.added, r.renamed, r.overwritten, r.skipped]).toEqual([3, 1, 0, 0]);
+describe('id interni', () => {
+  it('nextId: massimo + 1, ignora gli id in altri formati', () => {
+    expect(nextId('p', [])).toBe('p1');
+    expect(nextId('p', ['p1', 'p7', 'p3', undefined, 'x9', 'c12', 'p0', 'p01'])).toBe('p8');
+    expect(nextId('c', ['c2', 'p9'])).toBe('c3');
   });
 
-  it('append + overwrite: sostituisce nella stessa posizione', () => {
-    const r = mergePuzzles(existing, incoming, { mode: 'append', onConflict: 'overwrite' });
-    expect(idsOf(r.puzzles)).toEqual(['a', 'b', '-', 'c', '-']);
-    expect(r.puzzles[1].title).toBe('B2');
-    expect([r.added, r.overwritten]).toEqual([2, 1]);
+  it('ensureIds assegna id mancanti, non validi o duplicati in modo deterministico', () => {
+    const shared = P('p2');
+    const cols = [C(undefined, 'A', [P(), shared, P('vecchio-id')]), C('c1', 'B', [shared, P('p2')])];
+    const a = ensureIds(cols);
+    const b = ensureIds(cols);
+    expect(a).toEqual(b);
+    expect(a.map((c) => c.id)).toEqual(['c2', 'c1']);
+    expect(idsOf(a[0].puzzles)).toEqual(['p3', 'p2', 'p4']);
+    expect(idsOf(a[1].puzzles)).toEqual(['p5', 'p6']);
+    // id validi: stesso oggetto
+    expect(a[0].puzzles[1]).toBe(shared);
+    // la copia condivisa nell'altra raccolta diventa un oggetto distinto
+    expect(a[1].puzzles[0]).not.toBe(shared);
   });
 
-  it('append + skip', () => {
-    const r = mergePuzzles(existing, incoming, { mode: 'append', onConflict: 'skip' });
-    expect(idsOf(r.puzzles)).toEqual(['a', 'b', '-', 'c', '-']);
-    expect(r.puzzles[1].title).toBe('B1');
-    expect(r.skipped).toBe(1);
+  it('ensureIds non tocca nulla se gli id sono già corretti', () => {
+    const cols = [C('c1', 'A', [P('p1'), P('p2')]), C('c2', 'B', [P('p3')])];
+    expect(ensureIds(cols)).toBe(cols);
   });
 
-  it('replace: solo i nuovi, con id interni resi univoci', () => {
-    const r = mergePuzzles(existing, [P('x'), P('x')], { mode: 'replace', onConflict: 'skip' });
-    expect(idsOf(r.puzzles)).toEqual(['x', 'x-2']);
+  it('withFreshIds: copie distinte con id liberi su tutte le raccolte', () => {
+    const src = P('p1', 'X');
+    const cols = [C('c1', 'A', [src]), C('c2', 'B', [P('p4')])];
+    const [copy] = withFreshIds([src], cols);
+    expect(copy.id).toBe('p5');
+    expect(copy).not.toBe(src);
+    expect(copy.title).toBe('X');
+    expect(idsOf(withFreshIds([P(), P()], cols, ['p9']))).toEqual(['p10', 'p11']);
   });
 
-  it('id in conflitto', () => {
-    expect([...conflictingIds(existing, incoming)]).toEqual(['b']);
+  it('newCollection: id, nome univoco e puzzle copiati', () => {
+    const src = P('p1');
+    const cols = [C('c1', 'Uno', [src])];
+    const c = newCollection('Uno', cols, [src]);
+    expect(c).toMatchObject({ id: 'c2', name: 'Uno (2)' });
+    expect(idsOf(c.puzzles)).toEqual(['p2']);
+    expect(c.puzzles[0]).not.toBe(src);
+  });
+
+  it('replacePuzzleById e findPuzzle lavorano sull’id, non sulla posizione', () => {
+    const cols = [C('c1', 'A', [P('p1'), P('p2')]), C('c2', 'B', [P('p3')])];
+    const edited = { ...P('p3'), title: 'nuovo' };
+    const r = replacePuzzleById(cols, edited);
+    expect(r[1].puzzles[0]).toBe(edited);
+    expect(r[0]).toBe(cols[0]);
+    expect(replacePuzzleById(cols, P('p99'))).toBe(cols);
+    expect(findPuzzle(cols, 'p3')).toEqual({ collection: 1, puzzle: 0 });
+    expect(findPuzzle(cols, 'p99')).toBeNull();
   });
 });
 
 describe('applyImport', () => {
-  const cols: PuzzleCollection[] = [
-    { name: 'Uno', puzzles: [P('a')] },
-    { name: 'Due', puzzles: [P('z')] },
-  ];
+  const cols: PuzzleCollection[] = [C('c1', 'Uno', [P('p1')]), C('c2', 'Due', [P('p2')])];
 
-  it('aggiunge alla raccolta indicata', () => {
-    const r = applyImport(cols, 1, [P('a')], { destination: 'append' });
+  it('aggiunge alla raccolta indicata con id nuovi', () => {
+    const r = applyImport(cols, 1, [P('p1'), P('altro')], { destination: 'append' });
     expect(r.collection).toBe(1);
-    expect(idsOf(r.collections[1].puzzles)).toEqual(['z', 'a']);
+    expect(idsOf(r.collections[1].puzzles)).toEqual(['p2', 'p3', 'p4']);
+    expect(r.added).toBe(2);
     expect(r.collections[0]).toBe(cols[0]);
   });
 
   it('sostituisce il contenuto', () => {
     const r = applyImport(cols, 0, [P('q')], { destination: 'replace' });
-    expect(idsOf(r.collections[0].puzzles)).toEqual(['q']);
+    expect(idsOf(r.collections[0].puzzles)).toEqual(['p3']);
     expect(r.collections[0].name).toBe('Uno');
   });
 
   it('crea una nuova raccolta con nome univoco', () => {
     const r = applyImport(cols, 0, [P('q')], { destination: 'new', name: 'Uno', description: 'd' });
     expect(r.collection).toBe(2);
-    expect(r.collections[2]).toMatchObject({ name: 'Uno (2)', description: 'd' });
+    expect(r.collections[2]).toMatchObject({ id: 'c3', name: 'Uno (2)', description: 'd' });
+    expect(idsOf(r.collections[2].puzzles)).toEqual(['p3']);
   });
 });
 

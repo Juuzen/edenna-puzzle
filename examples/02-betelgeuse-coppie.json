@@ -1,9 +1,7 @@
 {
   "format": "edenna-puzzle",
   "version": 1,
-  "id": "betelgeuse-01",
   "title": "Coppie",
-  "description": "Ogni stella vuole esattamente un compagno del suo colore.",
   "width": 4,
   "height": 4,
   "symmetry": "none",

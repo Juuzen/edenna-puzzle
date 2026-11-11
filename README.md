@@ -8,7 +8,7 @@ Editor e visualizzatore di puzzle a linea nello stile di *The Witness*, in React
 - **`<PuzzlePlayer>`**: puzzle giocabile con mouse, touch e tastiera.
 - **`<PuzzleEditor>`**: editor completo con annulla/ripeti, prova, solver, JSON modificabile a mano.
 - **`<PuzzleLibrary>`**: gestione di più raccolte con nome, export intero o selettivo, import con scelta.
-- **Formato JSON** leggibile e versionato, più import/export dei codici di The Windmill.
+- **Formato JSON** leggibile e versionato.
 
 ## Avvio
 
@@ -34,8 +34,7 @@ const { puzzle } = parsePuzzle(raw);
 
 <PuzzlePlayer
   puzzle={puzzle}
-  theme="ep-theme-edenna-dark"
-  onSolve={(result, paths) => apriPorta(puzzle.id)}
+  onSolve={(result, paths) => apriPorta(puzzle.data?.stanza)}
   onFail={(result) => log('tentativo fallito', result.errors.length)}
 />;
 ```
@@ -54,7 +53,6 @@ basta cambiargli `key`. Props principali:
 | `disabled` | `false` | |
 | `captureRadius` | `0.25` | Distanza (in celle) dalle linee entro cui il percorso segue il puntatore; al centro delle celle viene ignorato |
 | `cancelFadeMs` | `400` | Durata della dissolvenza di un percorso abbandonato |
-| `theme` | `ep-theme-edenna` | Classe del tema |
 
 Comandi: clic sul cerchio di partenza, il percorso segue il puntatore, clic sull'uscita per confermare
 (oppure trascina e rilascia; su touch si trascina). Clic destro / Esc annulla, e un percorso
@@ -85,16 +83,21 @@ const [active, setActive] = useState({ collection: 0, puzzle: 0 });
 Permette di creare, rinominare, duplicare ed eliminare raccolte; aggiungere, duplicare, riordinare ed
 eliminare puzzle; selezionarne più di uno per esportarli, copiarli in un'altra raccolta o eliminarli.
 «Importa…» apre `<ImportDialog>`: si scelgono i puzzle del file e la destinazione (aggiungi alla
-raccolta attiva, sostituiscine il contenuto, nuova raccolta) e, per gli `id` già presenti, se rinominare
-(`b12-2`), sovrascrivere o saltare. Le stesse operazioni sono disponibili come funzioni pure
-(`mergePuzzles`, `applyImport`, `moveItem`, `uniqueId`…).
+raccolta attiva, sostituiscine il contenuto, nuova raccolta). Le stesse operazioni sono disponibili
+come funzioni pure (`applyImport`, `withFreshIds`, `moveItem`, `ensureIds`…).
 
-### Temi
+**Id interni.** Ogni raccolta (`c1`, `c2`…) e ogni puzzle (`p1`, `p2`…) ha un `id` interno, univoco
+(per i puzzle su tutte le raccolte) e generato in modo deterministico: il prossimo è il massimo esistente
++ 1. Non si mostra né si modifica: serve a editor, libreria e viewer per riferire un puzzle senza
+ambiguità. `ensureIds` li assegna dove mancano o sono duplicati; ogni puzzle che entra in una raccolta
+(nuovo, duplicato, copiato, importato) riceve un id nuovo con `withFreshIds`, quindi l'import non ha
+conflitti. Con `<PuzzleEditor value>` controllato, il cambio di `id` fa ricaricare l'editor.
 
-Tre temi inclusi: `ep-theme-edenna` (bianco clinico e blu aziendale), `ep-theme-edenna-dark`, `ep-theme-classic`.
-Un tema è solo un insieme di variabili CSS (`--ep-panel`, `--ep-line`, `--ep-path`, `--ep-success`,
-`--ep-error`, `--ep-c-<colore>`…): per crearne uno basta copiare un blocco di
-[`theme.css`](src/components/theme.css) con un nuovo nome di classe.
+### Colori
+
+Un solo aspetto (bianco clinico e blu aziendale), definito come variabili CSS su `:root` in
+[`theme.css`](src/components/theme.css) (`--ep-panel`, `--ep-line`, `--ep-path`, `--ep-success`,
+`--ep-error`, `--ep-c-<colore>`…). Ogni puzzle può avere sfondo e colori propri (`background`, `palette`).
 
 ## Formato JSON
 
@@ -102,7 +105,7 @@ Un tema è solo un insieme di variabili CSS (`--ep-panel`, `--ep-line`, `--ep-pa
 {
   "format": "edenna-puzzle",
   "version": 1,
-  "id": "altrove-b12",
+  "id": "p12",
   "title": "Anomalia",
   "background": {"colors":["#eef1f5","#c9d6e8"],"angle":135},
   "palette": {"line":"#979faa","path":"#256be4","success":"#12816f"},
@@ -153,15 +156,15 @@ Un solo elemento per posizione.
 `symmetry`: `none`, `horizontal`, `vertical`, `rotational`. Con una simmetria il giocatore traccia
 due percorsi speculari contemporaneamente; partenze e uscite vengono sempre messe in coppia.
 
-`id`, `title`, `author`, `description` sono facoltativi.
+`title` è facoltativo; `id` è l'id interno descritto sopra (nei file importati viene riassegnato).
 
-`background` (facoltativo) colora il pannello al posto del tema: `colors` con un colore (tinta unita) o
+`background` (facoltativo) colora il pannello al posto del colore predefinito: `colors` con un colore (tinta unita) o
 due (gradiente lineare), in formato `#rrggbb`; `angle` in gradi come in CSS (`0` verso l'alto, `90`
 verso destra, `180` verso il basso, default).
 
 `palette` (facoltativo, vale solo insieme a `background`) cambia i colori della griglia (`line`, anche
 uscite e cerchio di partenza), del percorso in tracciamento (`path`) e di quello risolto (`success`).
-I simboli restano quelli del tema. Nell'editor ogni colore mostra il contrasto con lo sfondo (nel punto
+I simboli restano quelli predefiniti. Nell'editor ogni colore mostra il contrasto con lo sfondo (nel punto
 peggiore del gradiente) e propone colori consigliati: griglia almeno 2:1 (discreta ma visibile),
 percorsi almeno 3:1 (WCAG 1.4.11) e staccati dalla griglia, percorso risolto distinguibile da quello in
 tracciamento. Gli stessi calcoli sono esportati dal motore: `contrastRatio`, `checkColor`,
@@ -180,13 +183,6 @@ leggono e scrivono anche i metadati; `parsePuzzleSet` / `serializePuzzleSet` sol
 
 **Lettura tollerante.** `parsePuzzle` scarta elementi non validi, fuori griglia o duplicati e li
 elenca in `warnings`; solo dimensioni non valide o JSON malformato sono errori.
-
-### Codici di The Windmill
-
-`decodeWindmillCode(codice o URL)` converte i codici di windmill.thefifthmatt.com (protobuf `Storage`
-in base64, terminano con `_0`) nel formato JSON; `encodeWindmillCode(puzzle)` fa il contrario.
-Nell'editor basta incollare il codice nella scheda JSON. Il codice originale viene salvato in
-`data.windmillCode`.
 
 ## Differenze rispetto a windmill-client
 

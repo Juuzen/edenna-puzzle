@@ -9,7 +9,16 @@ import {
   validEndDirections,
   type Puzzle,
 } from '../engine';
-import { DEFAULT_TOOL, applyTool, isAlreadyThere, nextEndDirection, pickEndDirection, type Target } from './editorTools';
+import {
+  DEFAULT_TOOL,
+  applyTool,
+  isAlreadyThere,
+  keepId,
+  nextEndDirection,
+  pickEndDirection,
+  shouldReset,
+  type Target,
+} from './editorTools';
 import { isTraceComplete, startTrace, stepTrace } from './tracing';
 
 const END_TOOL = { ...DEFAULT_TOOL, kind: 'end' as const };
@@ -97,5 +106,39 @@ describe('tracciamento verso un’uscita orientata', () => {
     const at = stepTrace(idx, startTrace({ x: 2, y: 3 }), 'up');
     expect(stepTrace(idx, at, 'left')).toEqual(at);
     expect(isTraceComplete(idx, stepTrace(idx, at, 'up'))).toBe(true);
+  });
+});
+
+describe('sincronizzazione editor ↔ raccolta', () => {
+  const A = { ...createPuzzle(2, 2), id: 'p1' };
+  const B = { ...createPuzzle(3, 3), id: 'p2' };
+
+  it('A modificato → B → ritorno su A ricarica A (bug dei puzzle scambiati)', () => {
+    const A1 = { ...A, title: 'modificato' };
+    // L'editor ha emesso A1, poi è passato a B: al reset lastEmitted diventa B.
+    expect(shouldReset(B, A1, A1)).toBe(true);
+    // Tornando su A1 con l'editor che mostra B, va ricaricato anche se A1 era l'ultima emissione.
+    expect(shouldReset(A1, B, A1)).toBe(true);
+  });
+
+  it('non ricarica l’eco delle proprie modifiche', () => {
+    const A1 = { ...A, title: '1' };
+    const A2 = { ...A, title: '2' };
+    expect(shouldReset(A1, A1, A1)).toBe(false);
+    // il genitore è ancora indietro di una modifica
+    expect(shouldReset(A1, A2, A1)).toBe(false);
+  });
+
+  it('ricarica una modifica esterna dello stesso puzzle', () => {
+    const ext = { ...A, title: 'da fuori' };
+    expect(shouldReset(ext, A, A)).toBe(true);
+    expect(shouldReset(undefined, A, null)).toBe(false);
+  });
+
+  it('keepId conserva l’identità', () => {
+    const imported = { ...createPuzzle(4, 4), id: 'p9' };
+    expect(keepId(imported, 'p1').id).toBe('p1');
+    expect('id' in keepId(imported, undefined)).toBe(false);
+    expect(keepId(A, 'p1')).toBe(A);
   });
 });

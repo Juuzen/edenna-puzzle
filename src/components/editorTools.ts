@@ -276,3 +276,28 @@ export function applyTool(p: Puzzle, tool: ToolState, t: Target, mode: 'add' | '
   if (!item) return { puzzle: p, notice: 'Disegna prima la forma del poliomino.' };
   return { puzzle: setCell(p, t.at, item) };
 }
+
+// ---------------------------------------------------------------------------
+// Sincronizzazione con il valore controllato
+
+/**
+ * Se l'editor deve ricaricare `value` (scartando la cronologia).
+ * - stesso oggetto del puzzle mostrato → no;
+ * - id diverso → è un altro puzzle → sì;
+ * - stesso id ma oggetto diverso: sì, a meno che sia l'eco dell'ultima
+ *   modifica emessa dall'editor (`lastEmitted`).
+ */
+export function shouldReset(value: Puzzle | undefined, present: Puzzle, lastEmitted: Puzzle | null): boolean {
+  if (!value || value === present) return false;
+  if (value.id !== present.id) return true;
+  return value !== lastEmitted;
+}
+
+/** `p` con l'id `id` (o senza, se `id` è assente): l'identità di un puzzle non cambia modificandolo. */
+export function keepId(p: Puzzle, id: string | undefined): Puzzle {
+  if (p.id === id) return p;
+  const next = { ...p };
+  if (id === undefined) delete next.id;
+  else next.id = id;
+  return next;
+}

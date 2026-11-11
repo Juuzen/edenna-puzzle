@@ -1,11 +1,9 @@
 /*
- * Temi di edenna-puzzle. Ogni tema è solo un insieme di variabili CSS:
- * per crearne uno nuovo basta definire una classe con le stesse variabili
- * e passarla al componente (prop `theme`).
+ * Colori di edenna-puzzle (bianco clinico e blu aziendale), come variabili
+ * CSS. Un puzzle con `background`/`palette` li sovrascrive localmente.
  */
 
-.ep-theme-edenna {
-  /* In-game Edenna: bianco clinico e blu aziendale. */
+:root {
   --ep-bg: transparent;
   --ep-panel: #eef1f5;
   --ep-panel-edge: #d5dbe3;
@@ -28,55 +26,6 @@
   --ep-c-orange: #ef7d1a;
   /* I simboli bianchi su pannello chiaro hanno bisogno di un contorno. */
   --ep-white-outline: #9aa6b5;
-}
-
-.ep-theme-edenna-dark {
-  --ep-bg: transparent;
-  --ep-panel: #141a24;
-  --ep-panel-edge: #263142;
-  --ep-line: #34445c;
-  --ep-start: #34445c;
-  --ep-path: #6ea8ff;
-  --ep-path-glow: rgba(110, 168, 255, 0.5);
-  --ep-success: #3fe0c5;
-  --ep-success-glow: rgba(63, 224, 197, 0.55);
-  --ep-error: #ff5a6e;
-  --ep-hexagon: #0a0d12;
-  --ep-c-black: #05070a;
-  --ep-c-white: #f4f7fb;
-  --ep-c-cyan: #2fd3e6;
-  --ep-c-magenta: #e45bb5;
-  --ep-c-yellow: #f2c230;
-  --ep-c-red: #ff5a6e;
-  --ep-c-green: #44c96b;
-  --ep-c-blue: #4d84ff;
-  --ep-c-orange: #ff9333;
-  --ep-white-outline: transparent;
-}
-
-/* Omaggio al pannello classico del gioco. */
-.ep-theme-classic {
-  --ep-bg: transparent;
-  --ep-panel: #28302c;
-  --ep-panel-edge: #161b18;
-  --ep-line: #5f6e64;
-  --ep-start: #5f6e64;
-  --ep-path: #f6e9a8;
-  --ep-path-glow: rgba(246, 233, 168, 0.5);
-  --ep-success: #fff7d1;
-  --ep-success-glow: rgba(255, 247, 209, 0.7);
-  --ep-error: #ff4d3d;
-  --ep-hexagon: #111;
-  --ep-c-black: #000;
-  --ep-c-white: #fff;
-  --ep-c-cyan: #00e0ff;
-  --ep-c-magenta: #ff3ccf;
-  --ep-c-yellow: #ffd500;
-  --ep-c-red: #ff3b30;
-  --ep-c-green: #33cc33;
-  --ep-c-blue: #3070ff;
-  --ep-c-orange: #ff8a00;
-  --ep-white-outline: transparent;
 }
 
 /* ------------------------------------------------------------------ board */

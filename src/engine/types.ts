@@ -125,10 +125,12 @@ export interface PuzzlePalette {
 }
 
 export interface PuzzleMeta {
+  /**
+   * Identificativo interno, univoco tra tutte le raccolte (`p1`, `p2`, …).
+   * Lo assegna la gestione delle raccolte: non va mostrato né modificato.
+   */
   id?: string;
   title?: string;
-  author?: string;
-  description?: string;
   /** Se manca si usa il colore del tema. */
   background?: PuzzleBackground;
   /** Colori di griglia e percorsi (solo con `background`). */
@@ -150,6 +152,7 @@ export interface Puzzle extends PuzzleMeta {
 
 /** Raccolta di puzzle con nome (file `edenna-puzzle-set`). */
 export interface PuzzleCollection {
+  /** Identificativo interno univoco (`c1`, `c2`, …), come `PuzzleMeta.id`. */
   id?: string;
   name: string;
   description?: string;

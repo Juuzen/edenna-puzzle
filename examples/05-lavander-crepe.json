@@ -1,9 +1,7 @@
 {
   "format": "edenna-puzzle",
   "version": 1,
-  "id": "lavander-01",
   "title": "Crepe",
-  "description": "Lati interrotti, lati mancanti ed esagoni obbligatori.",
   "width": 4,
   "height": 4,
   "symmetry": "none",

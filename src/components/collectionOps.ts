@@ -29,18 +29,7 @@ export function pickPuzzles<T>(list: T[], indices: Iterable<number>): T[] {
   return list.filter((_, i) => set.has(i));
 }
 
-/** `id` se libero, altrimenti `id-2`, `id-3`… */
-export function uniqueId(id: string, taken: Iterable<string>): string {
-  const set = new Set(taken);
-  if (!set.has(id)) return id;
-  const base = id.replace(/-\d+$/, '');
-  for (let n = 2; ; n++) {
-    const c = `${base}-${n}`;
-    if (!set.has(c)) return c;
-  }
-}
-
-/** Stesso principio di `uniqueId` per i nomi delle raccolte: "Nome (2)". */
+/** Nome libero: "Nome", altrimenti "Nome (2)", "Nome (3)"… */
 export function uniqueName(name: string, taken: Iterable<string>): string {
   const set = new Set(taken);
   if (!set.has(name)) return name;
@@ -51,103 +40,156 @@ export function uniqueName(name: string, taken: Iterable<string>): string {
   }
 }
 
-const ids = (list: Puzzle[]) => list.map((p) => p.id).filter((x): x is string => !!x);
+// ---------------------------------------------------------------------------
+// Id interni
+//
+// Puzzle e raccolte hanno un id interno (`p1`, `p2`… e `c1`, `c2`…) che serve
+// solo a riferirli in modo univoco (editor, libreria, viewer): non si mostra
+// e non si modifica. Gli id dei puzzle sono univoci su tutte le raccolte.
+// La generazione è deterministica: il prossimo id è il massimo esistente + 1.
 
-/** Copia di un puzzle con id univoco nella lista (suffisso `-copia`). */
-export function duplicatePuzzle(p: Puzzle, list: Puzzle[]): Puzzle {
-  if (!p.id) return { ...p };
-  return { ...p, id: uniqueId(`${p.id}-copia`, ids(list)) };
+export type IdPrefix = 'p' | 'c';
+
+const ID_PATTERN: Record<IdPrefix, RegExp> = { p: /^p([1-9]\d*)$/, c: /^c([1-9]\d*)$/ };
+
+const idNumber = (prefix: IdPrefix, id: string | undefined): number => {
+  const m = id ? ID_PATTERN[prefix].exec(id) : null;
+  return m ? Number(m[1]) : 0;
+};
+
+/** `true` se `id` è nella forma `p<n>` / `c<n>`. */
+export const isValidId = (prefix: IdPrefix, id: string | undefined) => idNumber(prefix, id) > 0;
+
+/** Primo id libero dopo il più alto tra quelli presi. */
+export function nextId(prefix: IdPrefix, taken: Iterable<string | undefined>): string {
+  let max = 0;
+  for (const id of taken) max = Math.max(max, idNumber(prefix, id));
+  return `${prefix}${max + 1}`;
 }
 
-export type MergeMode = 'append' | 'replace';
-export type ConflictPolicy = 'rename' | 'overwrite' | 'skip';
+/** Tutti gli id dei puzzle, in tutte le raccolte. */
+export function allPuzzleIds(collections: PuzzleCollection[]): string[] {
+  return collections.flatMap((c) => c.puzzles.map((p) => p.id)).filter((x): x is string => !!x);
+}
 
-export interface MergeResult {
-  puzzles: Puzzle[];
-  added: number;
-  renamed: number;
-  overwritten: number;
-  skipped: number;
+const withId = <T extends { id?: string }>(item: T, id: string): T => (item.id === id ? item : { ...item, id });
+
+/**
+ * Assegna un id a raccolte e puzzle che non ce l'hanno, ce l'hanno in un
+ * formato diverso o lo condividono con un elemento precedente. Gli id validi
+ * restano invariati, e così gli oggetti che non cambiano (stesso riferimento).
+ */
+export function ensureIds(collections: PuzzleCollection[]): PuzzleCollection[] {
+  const seenC = new Set<string>();
+  const seenP = new Set<string>();
+  let nextC = idNumber('c', nextId('c', collections.map((c) => c.id)));
+  let nextP = idNumber('p', nextId('p', allPuzzleIds(collections)));
+  let changed = false;
+  const out = collections.map((c) => {
+    let cid = c.id;
+    if (!cid || !isValidId('c', cid) || seenC.has(cid)) cid = `c${nextC++}`;
+    seenC.add(cid);
+    let puzzlesChanged = false;
+    const puzzles = c.puzzles.map((p) => {
+      let pid = p.id;
+      if (!pid || !isValidId('p', pid) || seenP.has(pid)) pid = `p${nextP++}`;
+      seenP.add(pid);
+      const q = withId(p, pid);
+      if (q !== p) puzzlesChanged = true;
+      return q;
+    });
+    if (cid === c.id && !puzzlesChanged) return c;
+    changed = true;
+    return { ...c, id: cid, puzzles: puzzlesChanged ? puzzles : c.puzzles };
+  });
+  return changed ? out : collections;
 }
 
 /**
- * Unisce `incoming` a `existing`.
- * - `replace`: il risultato è solo `incoming` (gli id duplicati interni al
- *   file vengono comunque resi univoci).
- * - `append`: in coda; un puzzle con un `id` già presente viene rinominato,
- *   sovrascrive quello esistente (nella sua posizione) o viene saltato.
+ * Copie di `puzzles` con id nuovi, liberi rispetto a `collections` (e a
+ * `extraTaken`). Da usare per ogni puzzle che entra in una raccolta: nuovo,
+ * duplicato, copiato o importato.
  */
-export function mergePuzzles(
-  existing: Puzzle[],
-  incoming: Puzzle[],
-  opts: { mode: MergeMode; onConflict?: ConflictPolicy },
-): MergeResult {
-  const res: MergeResult = { puzzles: [], added: 0, renamed: 0, overwritten: 0, skipped: 0 };
-  const out = opts.mode === 'replace' ? [] : [...existing];
-  const policy = opts.mode === 'replace' ? 'rename' : (opts.onConflict ?? 'rename');
-  for (const p of incoming) {
-    const clash = p.id ? out.findIndex((q) => q.id === p.id) : -1;
-    if (clash < 0) {
-      out.push(p);
-      res.added++;
-    } else if (policy === 'skip') {
-      res.skipped++;
-    } else if (policy === 'overwrite' && clash < (opts.mode === 'replace' ? 0 : existing.length)) {
-      out[clash] = p;
-      res.overwritten++;
-    } else {
-      out.push({ ...p, id: uniqueId(p.id!, ids(out)) });
-      res.added++;
-      res.renamed++;
+export function withFreshIds(
+  puzzles: Puzzle[],
+  collections: PuzzleCollection[],
+  extraTaken: Iterable<string> = [],
+): Puzzle[] {
+  let n = idNumber('p', nextId('p', [...allPuzzleIds(collections), ...extraTaken]));
+  return puzzles.map((p) => ({ ...p, id: `p${n++}` }));
+}
+
+/** Sostituisce il puzzle con lo stesso id di `p`, in qualunque raccolta. */
+export function replacePuzzleById(collections: PuzzleCollection[], p: Puzzle): PuzzleCollection[] {
+  if (!p.id) return collections;
+  for (let ci = 0; ci < collections.length; ci++) {
+    const i = collections[ci].puzzles.findIndex((q) => q.id === p.id);
+    if (i >= 0) {
+      if (collections[ci].puzzles[i] === p) return collections;
+      return replaceAt(collections, ci, { ...collections[ci], puzzles: replaceAt(collections[ci].puzzles, i, p) });
     }
   }
-  res.puzzles = out;
-  return res;
+  return collections;
 }
 
-/** Id dei puzzle in arrivo che esistono già nella lista. */
-export function conflictingIds(existing: Puzzle[], incoming: Puzzle[]): Set<string> {
-  const have = new Set(ids(existing));
-  return new Set(ids(incoming).filter((id) => have.has(id)));
+/** Posizione del puzzle con id `id`, o `null`. */
+export function findPuzzle(collections: PuzzleCollection[], id: string | undefined): { collection: number; puzzle: number } | null {
+  if (!id) return null;
+  for (let ci = 0; ci < collections.length; ci++) {
+    const i = collections[ci].puzzles.findIndex((q) => q.id === id);
+    if (i >= 0) return { collection: ci, puzzle: i };
+  }
+  return null;
 }
 
+/**
+ * Nuova raccolta con nome reso univoco, id proprio e puzzle con id nuovi
+ * (i puzzle passati vengono copiati, non condivisi).
+ */
 export function newCollection(name: string, taken: PuzzleCollection[], puzzles: Puzzle[] = []): PuzzleCollection {
-  return { name: uniqueName(name, taken.map((c) => c.name)), puzzles };
+  return {
+    id: nextId('c', taken.map((c) => c.id)),
+    name: uniqueName(name, taken.map((c) => c.name)),
+    puzzles: withFreshIds(puzzles, taken),
+  };
 }
 
 export type ImportDestination = 'append' | 'replace' | 'new';
 
-export interface ImportResult extends MergeResult {
+export interface ImportResult {
   collections: PuzzleCollection[];
   /** Indice della raccolta che ha ricevuto i puzzle. */
   collection: number;
+  /** Puzzle della raccolta di destinazione dopo l'import. */
+  puzzles: Puzzle[];
+  /** Quanti puzzle sono stati aggiunti (in coda a `puzzles`). */
+  added: number;
 }
 
 /**
- * Applica un import: aggiunge a `target`, lo sostituisce, oppure crea una
- * nuova raccolta chiamata `name` (reso univoco).
+ * Applica un import: aggiunge in coda a `target`, ne sostituisce il contenuto
+ * oppure crea una nuova raccolta chiamata `name` (resa univoca). I puzzle in
+ * arrivo ricevono sempre id nuovi, quindi non ci sono conflitti.
  */
 export function applyImport(
   collections: PuzzleCollection[],
   target: number,
   incoming: Puzzle[],
-  opts: { destination: ImportDestination; onConflict?: ConflictPolicy; name?: string; description?: string },
+  opts: { destination: ImportDestination; name?: string; description?: string },
 ): ImportResult {
   if (opts.destination === 'new' || !collections[target]) {
-    const merged = mergePuzzles([], incoming, { mode: 'replace' });
-    const c = newCollection(opts.name || 'Importata', collections, merged.puzzles);
+    const c = newCollection(opts.name || 'Importata', collections, incoming);
     if (opts.description) c.description = opts.description;
-    return { ...merged, collections: [...collections, c], collection: collections.length };
+    return { collections: [...collections, c], collection: collections.length, puzzles: c.puzzles, added: c.puzzles.length };
   }
   const cur = collections[target];
-  const merged = mergePuzzles(cur.puzzles, incoming, {
-    mode: opts.destination === 'replace' ? 'replace' : 'append',
-    onConflict: opts.onConflict,
-  });
+  const fresh = withFreshIds(incoming, collections);
+  const puzzles = opts.destination === 'replace' ? fresh : [...cur.puzzles, ...fresh];
   return {
-    ...merged,
-    collections: replaceAt(collections, target, { ...cur, puzzles: merged.puzzles }),
+    collections: replaceAt(collections, target, { ...cur, puzzles }),
     collection: target,
+    puzzles,
+    added: fresh.length,
   };
 }
 

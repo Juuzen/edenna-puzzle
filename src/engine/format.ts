@@ -109,13 +109,8 @@ export function parsePalette(raw: unknown, warnings: string[] = []): PuzzlePalet
 export function parsePuzzle(input: string | unknown): ParseResult {
   let raw: unknown = input;
   if (typeof input === 'string') {
-    const trimmed = input.trim();
-    if (/^[A-Za-z0-9_\-+/=]+_0$/.test(trimmed)) {
-      // Codice di windmill.thefifthmatt.com incollato direttamente.
-      return { puzzle: decodeWindmillCode(trimmed), warnings: [] };
-    }
     try {
-      raw = JSON.parse(trimmed);
+      raw = JSON.parse(input.trim());
     } catch (e) {
       throw new PuzzleFormatError(`JSON non valido: ${(e as Error).message}`);
     }
@@ -234,8 +229,6 @@ export function parsePuzzle(input: string | unknown): ParseResult {
     version: FORMAT_VERSION,
     ...(typeof raw.id === 'string' ? { id: raw.id } : {}),
     ...(typeof raw.title === 'string' ? { title: raw.title } : {}),
-    ...(typeof raw.author === 'string' ? { author: raw.author } : {}),
-    ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
     ...(background ? { background } : {}),
     ...(palette ? { palette } : {}),
     ...(isObj(raw.data) ? { data: raw.data } : {}),
@@ -280,24 +273,19 @@ export interface CollectionParseResult {
 
 /**
  * Legge una raccolta con i suoi metadati (`name`, `id`, `description`).
- * Accetta anche un array semplice, un singolo puzzle o un codice Windmill:
+ * Accetta anche un array semplice o un singolo puzzle:
  * in quel caso il nome è il titolo del puzzle o `fallbackName`.
  */
 export function parseCollection(input: string | unknown, fallbackName = 'Importata'): CollectionParseResult {
   let raw: unknown = input;
-  let results: ParseResult[];
-  if (typeof input === 'string' && /^[A-Za-z0-9_\-+/=]+_0$/.test(input.trim())) {
-    results = [parsePuzzle(input)];
-  } else {
-    if (typeof input === 'string') {
-      try {
-        raw = JSON.parse(input);
-      } catch (e) {
-        throw new PuzzleFormatError(`JSON non valido: ${(e as Error).message}`);
-      }
+  if (typeof input === 'string') {
+    try {
+      raw = JSON.parse(input);
+    } catch (e) {
+      throw new PuzzleFormatError(`JSON non valido: ${(e as Error).message}`);
     }
-    results = parsePuzzleSet(raw);
   }
+  const results = parsePuzzleSet(raw);
   const meta = isObj(raw) && Array.isArray(raw.puzzles) ? raw : null;
   const metaName = meta && typeof meta.name === 'string' ? meta.name.trim() : '';
   const name = metaName || (results.length === 1 && results[0].puzzle.title) || fallbackName;
@@ -335,8 +323,6 @@ export function toPuzzleObject(p: Puzzle): Puzzle {
     version: FORMAT_VERSION,
     ...(p.id ? { id: p.id } : {}),
     ...(p.title ? { title: p.title } : {}),
-    ...(p.author ? { author: p.author } : {}),
-    ...(p.description ? { description: p.description } : {}),
     ...(background ? { background } : {}),
     ...(palette ? { palette } : {}),
     width: p.width,
@@ -386,344 +372,4 @@ function serializeCollectionBody(puzzles: Puzzle[], head: string[]): string {
   const lines = [`  "format": "${SET_FORMAT_ID}"`, ...head];
   const list = body.length ? `[\n${body.join(',\n')}\n  ]` : '[]';
   return `{\n${lines.join(',\n')},\n  "puzzles": ${list}\n}\n`;
-}
-
-// ---------------------------------------------------------------------------
-// Codici legacy di windmill.thefifthmatt.com (protobuf `Storage`, vedi
-// grid.proto nel progetto originale). Decoder/encoder minimali scritti a
-// mano per non dipendere da protobuf.js.
-
-const LEGACY_COLORS: (Color | undefined)[] = [
-  undefined,
-  'black',
-  'white',
-  'cyan',
-  'magenta',
-  'yellow',
-  'red',
-  'green',
-  'blue',
-  'orange',
-];
-const LEGACY_SYMMETRY: Symmetry[] = ['none', 'none', 'horizontal', 'vertical', 'rotational'];
-
-/** Valori dell'enum `Type` di grid.proto. */
-const T = {
-  NONE: 1,
-  BASIC: 2,
-  START: 3,
-  END: 4,
-  DISJOINT: 5,
-  HEXAGON: 6,
-  SQUARE: 7,
-  STAR: 8,
-  TETRIS: 9,
-  ERROR: 10,
-  TRIANGLE: 11,
-} as const;
-
-class Reader {
-  pos = 0;
-  constructor(
-    public buf: Uint8Array,
-    public end = buf.length,
-  ) {}
-  done() {
-    return this.pos >= this.end;
-  }
-  varint(): number {
-    let result = 0;
-    let shift = 0;
-    for (;;) {
-      if (this.pos >= this.end) throw new PuzzleFormatError('Codice Windmill troncato.');
-      const b = this.buf[this.pos++];
-      result += (b & 0x7f) * 2 ** shift;
-      if (!(b & 0x80)) return result;
-      shift += 7;
-      if (shift > 63) throw new PuzzleFormatError('Varint non valido.');
-    }
-  }
-  sub(): Reader {
-    const len = this.varint();
-    const r = new Reader(this.buf, this.pos + len);
-    r.pos = this.pos;
-    this.pos += len;
-    if (this.pos > this.end) throw new PuzzleFormatError('Codice Windmill troncato.');
-    return r;
-  }
-  skip(wire: number) {
-    if (wire === 0) this.varint();
-    else if (wire === 1) this.pos += 8;
-    else if (wire === 2) this.pos = this.sub().end;
-    else if (wire === 5) this.pos += 4;
-    else throw new PuzzleFormatError(`Wire type ${wire} non supportato.`);
-  }
-}
-
-const zigzag = (n: number) => (n % 2 ? -(n + 1) / 2 : n / 2);
-
-interface LegacyEntity {
-  type: number;
-  color: number;
-  count: number;
-  triangleCount: number;
-  shape?: { width: number; grid: boolean[]; free: boolean; negative: boolean };
-  orientation?: { h: number; v: number };
-}
-
-function readEntity(r: Reader): LegacyEntity {
-  const e: LegacyEntity = { type: 0, color: 0, count: 0, triangleCount: 0 };
-  while (!r.done()) {
-    const tag = r.varint();
-    const field = Math.floor(tag / 8);
-    const wire = tag & 7;
-    if (field === 1 && wire === 0) e.type = r.varint();
-    else if (field === 2 && wire === 0) e.color = r.varint();
-    else if (field === 3 && wire === 2) {
-      const s = r.sub();
-      const o = { h: 0, v: 0 };
-      while (!s.done()) {
-        const t = s.varint();
-        if (t >> 3 === 1 && (t & 7) === 0) o.h = zigzag(s.varint());
-        else if (t >> 3 === 2 && (t & 7) === 0) o.v = zigzag(s.varint());
-        else s.skip(t & 7);
-      }
-      e.orientation = o;
-    } else if (field === 4 && wire === 2) {
-      const s = r.sub();
-      const shape = { width: 0, grid: [] as boolean[], free: false, negative: false };
-      while (!s.done()) {
-        const t = s.varint();
-        const f = t >> 3;
-        const w = t & 7;
-        if (f === 1 && w === 0) shape.width = s.varint();
-        else if (f === 2 && w === 2) {
-          const g = s.sub();
-          while (!g.done()) shape.grid.push(g.varint() !== 0);
-        } else if (f === 2 && w === 0) shape.grid.push(s.varint() !== 0);
-        else if (f === 3 && w === 0) shape.free = s.varint() !== 0;
-        else if (f === 4 && w === 0) shape.negative = s.varint() !== 0;
-        else s.skip(w);
-      }
-      e.shape = shape;
-    } else if (field === 5 && wire === 0) e.count = r.varint();
-    else if (field === 6 && wire === 0) e.triangleCount = r.varint();
-    else r.skip(wire);
-  }
-  return e;
-}
-
-function base64ToBytes(s: string): Uint8Array {
-  const pad = s.length % 4 ? '='.repeat(4 - (s.length % 4)) : '';
-  const bin = atob(s + pad);
-  return Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
-}
-
-function bytesToBase64(b: Uint8Array): string {
-  let s = '';
-  b.forEach((x) => (s += String.fromCharCode(x)));
-  return btoa(s);
-}
-
-/** Estrae il codice da un URL di windmill.thefifthmatt.com o lo restituisce così com'è. */
-export function extractWindmillCode(text: string): string {
-  const m = text.trim().match(/([A-Za-z0-9_\-+=]+_0)(?:[?#].*)?$/);
-  if (!m) throw new PuzzleFormatError('Nessun codice Windmill riconosciuto (deve finire con "_0").');
-  return m[1];
-}
-
-/** Converte un codice (o URL) di The Windmill nel formato JSON di edenna-puzzle. */
-export function decodeWindmillCode(input: string): Puzzle {
-  const code = extractWindmillCode(input);
-  const b64 = code.slice(0, -2).replace(/_/g, '/').replace(/-/g, '+');
-  let bytes: Uint8Array;
-  try {
-    bytes = base64ToBytes(b64);
-  } catch {
-    throw new PuzzleFormatError('Codice Windmill non valido (base64).');
-  }
-  const r = new Reader(bytes);
-  let storeWidth = 0;
-  let symmetryNum = 0;
-  const entities: LegacyEntity[] = [];
-  while (!r.done()) {
-    const tag = r.varint();
-    const field = Math.floor(tag / 8);
-    const wire = tag & 7;
-    if (field === 1 && wire === 0) storeWidth = r.varint();
-    else if (field === 2 && wire === 2) {
-      const e = readEntity(r.sub());
-      for (let i = 0; i < Math.max(1, e.count); i++) entities.push(e);
-    } else if (field === 3 && wire === 0) symmetryNum = r.varint();
-    else r.skip(wire);
-  }
-  if (!storeWidth || !entities.length || entities.length % storeWidth !== 0) {
-    throw new PuzzleFormatError('Codice Windmill non valido (dimensioni).');
-  }
-  const storeHeight = entities.length / storeWidth;
-  const width = Math.floor(storeWidth / 2);
-  const height = Math.floor(storeHeight / 2);
-  if (width < 1 || height < 1 || width > MAX_SIZE || height > MAX_SIZE) {
-    throw new PuzzleFormatError(`Dimensioni ${width}x${height} non supportate.`);
-  }
-
-  const points: PointItem[] = [];
-  const edges: EdgeItem[] = [];
-  const cells: CellItem[] = [];
-  for (let b = 0; b < storeHeight; b++) {
-    for (let a = 0; a < storeWidth; a++) {
-      const e = entities[a + storeWidth * b];
-      const type = e.type || T.BASIC;
-      if (type === T.BASIC) continue;
-      const x = Math.floor(a / 2);
-      const y = Math.floor(b / 2);
-      const evenA = a % 2 === 0;
-      const evenB = b % 2 === 0;
-      const color = LEGACY_COLORS[e.color];
-      if (evenA && evenB) {
-        if (type === T.START) points.push({ x, y, type: 'start' });
-        else if (type === T.END) points.push({ x, y, type: 'end' });
-        else if (type === T.HEXAGON) points.push({ x, y, type: 'hexagon' });
-      } else if (!evenA && !evenB) {
-        if (type === T.SQUARE && color) cells.push({ x, y, type: 'square', color });
-        else if (type === T.STAR && color) cells.push({ x, y, type: 'star', color });
-        else if (type === T.ERROR) cells.push({ x, y, type: 'eliminator' });
-        else if (type === T.TRIANGLE) {
-          const count = Math.min(3, Math.max(1, e.triangleCount || 1)) as 1 | 2 | 3;
-          cells.push({ x, y, type: 'triangle', count });
-        } else if (type === T.TETRIS && e.shape && e.shape.width > 0 && e.shape.grid.length) {
-          const rows: string[] = [];
-          for (let i = 0; i < e.shape.grid.length; i += e.shape.width) {
-            rows.push(
-              e.shape.grid
-                .slice(i, i + e.shape.width)
-                .map((v) => (v ? '#' : '.'))
-                .join(''),
-            );
-          }
-          const poly: CellItem = { x, y, type: 'polyomino', shape: rows };
-          if (e.shape.free) poly.rotatable = true;
-          if (e.shape.negative) poly.negative = true;
-          if (color) poly.color = color;
-          cells.push(poly);
-        }
-      } else {
-        const dir = evenA ? 'v' : 'h';
-        const t = type === T.NONE ? 'missing' : type === T.DISJOINT ? 'gap' : type === T.HEXAGON ? 'hexagon' : null;
-        if (t) edges.push({ x, y, dir, type: t });
-      }
-    }
-  }
-  return sanitize({
-    format: FORMAT_ID,
-    version: FORMAT_VERSION,
-    width,
-    height,
-    symmetry: LEGACY_SYMMETRY[symmetryNum] ?? 'none',
-    points,
-    edges,
-    cells,
-    data: { windmillCode: code },
-  });
-}
-
-// --- encoder (usato nei test di andata e ritorno; utile anche per esportare)
-
-class Writer {
-  bytes: number[] = [];
-  varint(n: number) {
-    while (n > 127) {
-      this.bytes.push((n % 128) | 0x80);
-      n = Math.floor(n / 128);
-    }
-    this.bytes.push(n);
-  }
-  tag(field: number, wire: number) {
-    this.varint(field * 8 + wire);
-  }
-  message(field: number, inner: Writer) {
-    this.tag(field, 2);
-    this.varint(inner.bytes.length);
-    this.bytes.push(...inner.bytes);
-  }
-}
-
-/** Converte un puzzle nel codice di The Windmill (ignora i metadati). */
-export function encodeWindmillCode(p: Puzzle): string {
-  const sw = p.width * 2 + 1;
-  const sh = p.height * 2 + 1;
-  const ents: (Writer | null)[] = Array.from({ length: sw * sh }, () => null);
-  const ent = (a: number, b: number, fill: (w: Writer) => void) => {
-    const w = new Writer();
-    fill(w);
-    ents[a + sw * b] = w;
-  };
-  const colorNum = (c?: Color) => (c ? LEGACY_COLORS.indexOf(c) : 0);
-  for (const pt of p.points) {
-    const t = pt.type === 'start' ? T.START : pt.type === 'end' ? T.END : T.HEXAGON;
-    ent(pt.x * 2, pt.y * 2, (w) => (w.tag(1, 0), w.varint(t)));
-  }
-  for (const e of p.edges) {
-    const t = e.type === 'missing' ? T.NONE : e.type === 'gap' ? T.DISJOINT : T.HEXAGON;
-    const [a, b] = e.dir === 'h' ? [e.x * 2 + 1, e.y * 2] : [e.x * 2, e.y * 2 + 1];
-    ent(a, b, (w) => (w.tag(1, 0), w.varint(t)));
-  }
-  for (const c of p.cells) {
-    ent(c.x * 2 + 1, c.y * 2 + 1, (w) => {
-      if (c.type === 'square' || c.type === 'star') {
-        w.tag(1, 0);
-        w.varint(c.type === 'square' ? T.SQUARE : T.STAR);
-        w.tag(2, 0);
-        w.varint(colorNum(c.color));
-      } else if (c.type === 'eliminator') {
-        w.tag(1, 0);
-        w.varint(T.ERROR);
-      } else if (c.type === 'triangle') {
-        w.tag(1, 0);
-        w.varint(T.TRIANGLE);
-        w.tag(6, 0);
-        w.varint(c.count);
-      } else {
-        w.tag(1, 0);
-        w.varint(T.TETRIS);
-        if (c.color) {
-          w.tag(2, 0);
-          w.varint(colorNum(c.color));
-        }
-        const grid = shapeToGrid(c.shape);
-        const s = new Writer();
-        s.tag(1, 0);
-        s.varint(grid[0]?.length ?? 0);
-        const packed = new Writer();
-        grid.flat().forEach((v) => packed.varint(v ? 1 : 0));
-        s.message(2, packed);
-        if (c.rotatable) (s.tag(3, 0), s.varint(1));
-        if (c.negative) (s.tag(4, 0), s.varint(1));
-        w.message(4, s);
-      }
-    });
-  }
-  const out = new Writer();
-  out.tag(1, 0);
-  out.varint(sw);
-  let empty = 0;
-  const flush = () => {
-    if (!empty) return;
-    const w = new Writer();
-    if (empty > 1) (w.tag(5, 0), w.varint(empty));
-    out.message(2, w);
-    empty = 0;
-  };
-  ents.forEach((w) => {
-    if (!w) {
-      empty++;
-      return;
-    }
-    flush();
-    out.message(2, w);
-  });
-  flush();
-  const symNum = LEGACY_SYMMETRY.lastIndexOf(p.symmetry);
-  if (p.symmetry !== 'none') (out.tag(3, 0), out.varint(symNum));
-  return bytesToBase64(Uint8Array.from(out.bytes)).replace(/\//g, '_').replace(/\+/g, '-') + '_0';
 }
