@@ -3,13 +3,19 @@ import {
   COLORS,
   MAX_SIZE,
   type Color,
+  DIRECTIONS,
   type Path,
   type Puzzle,
+  type PuzzleBackground,
+  DEFAULT_BACKGROUND_ANGLE,
+  normalizeAngle,
   type SolveResult,
   type Symmetry,
   type ValidationResult,
   autoEndDirection,
   createPuzzle,
+  endDirection,
+  getPoint,
   encodeWindmillCode,
   indexPuzzle,
   parsePuzzle,
@@ -32,6 +38,8 @@ import {
   emptyShape,
   hitTest,
   isAlreadyThere,
+  nextEndDirection,
+  pickEndDirection,
   shapeFromRows,
   targetKey,
   toolCellItem,
@@ -40,6 +48,9 @@ import {
 import { PuzzleBoard, clientToGrid } from './PuzzleBoard';
 import { PuzzlePlayer } from './PuzzlePlayer';
 import { CellSymbol, Hexagon, LINE, START_R, U, colorVar } from './Symbols';
+import { EXIT_LENGTH } from './tracing';
+import { backgroundCss } from './background';
+import { downloadText, slugify } from './collectionOps';
 
 export interface PuzzleEditorProps {
   /** Puzzle iniziale (non controllato). */
@@ -86,7 +97,7 @@ const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
     title: 'Punti',
     tools: [
       { kind: 'start', label: 'Partenza', hint: 'Clic su un incrocio' },
-      { kind: 'end', label: 'Uscita', hint: 'Sul bordo o accanto a un lato assente' },
+      { kind: 'end', label: 'Uscita', hint: 'Sul bordo o accanto a un lato assente: avvicina il puntatore al lato verso cui deve uscire (R per ruotare)' },
       { kind: 'hexagon', label: 'Esagono', hint: 'Su incrocio o lato: il percorso ci deve passare' },
     ],
   },
@@ -136,23 +147,118 @@ function useHistory(initial: Puzzle) {
 
 // ---------------------------------------------------------------------------
 
-function download(name: string, text: string) {
-  const blob = new Blob([text], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+const DEFAULT_BG_COLORS: [string, string] = ['#eef1f5', '#c9d6e8'];
+const ANGLE_PRESETS: { angle: number; label: string; title: string }[] = [
+  { angle: 180, label: '↓', title: 'Dall’alto in basso' },
+  { angle: 90, label: '→', title: 'Da sinistra a destra' },
+  { angle: 135, label: '↘', title: 'Diagonale verso il basso' },
+  { angle: 45, label: '↗', title: 'Diagonale verso l’alto' },
+];
 
-const slug = (s?: string) =>
-  (s || 'puzzle')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'puzzle';
+/**
+ * Controlli dello sfondo. `onChange(bg, continuous)`: `continuous` è vero
+ * mentre si trascina un selettore, così tutta la regolazione diventa un
+ * solo passo di "annulla".
+ */
+function BackgroundControls({
+  value,
+  onChange,
+  onSettle,
+}: {
+  value?: PuzzleBackground;
+  onChange: (bg: PuzzleBackground | undefined, continuous: boolean) => void;
+  onSettle: () => void;
+}) {
+  const kind = !value ? 'theme' : value.colors.length === 1 ? 'solid' : 'gradient';
+  const c0 = value?.colors[0] ?? DEFAULT_BG_COLORS[0];
+  const c1 = value?.colors[1] ?? DEFAULT_BG_COLORS[1];
+  const angle = value?.angle ?? DEFAULT_BACKGROUND_ANGLE;
+  const make = (k: typeof kind, a = c0, b = c1, ang = angle): PuzzleBackground | undefined =>
+    k === 'theme'
+      ? undefined
+      : k === 'solid'
+        ? { colors: [a] }
+        : ang === DEFAULT_BACKGROUND_ANGLE
+          ? { colors: [a, b] }
+          : { colors: [a, b], angle: normalizeAngle(ang) };
+  const settle = { onBlur: onSettle, onPointerUp: onSettle, onKeyUp: onSettle };
+  return (
+    <>
+      <div className="ep-seg ep-seg--full">
+        {(
+          [
+            ['theme', 'Tema'],
+            ['solid', 'Colore'],
+            ['gradient', 'Gradiente'],
+          ] as const
+        ).map(([k, label]) => (
+          <button key={k} type="button" className={kind === k ? 'is-active' : ''} onClick={() => onChange(make(k), false)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {value && (
+        <div className="ep-bg">
+          <span className="ep-bg__preview" style={{ background: backgroundCss(value) }} aria-hidden />
+          <input
+            type="color"
+            value={c0}
+            aria-label={kind === 'gradient' ? 'Colore iniziale' : 'Colore'}
+            onChange={(e) => onChange(make(kind, e.target.value), true)}
+            {...settle}
+          />
+          {kind === 'gradient' && (
+            <>
+              <button
+                type="button"
+                className="ep-btn ep-bg__swap"
+                title="Inverti i colori"
+                onClick={() => onChange(make(kind, c1, c0), false)}
+              >
+                ⇄
+              </button>
+              <input
+                type="color"
+                value={c1}
+                aria-label="Colore finale"
+                onChange={(e) => onChange(make(kind, c0, e.target.value), true)}
+                {...settle}
+              />
+            </>
+          )}
+        </div>
+      )}
+      {kind === 'gradient' && (
+        <>
+          <label className="ep-field">
+            <span>Direzione: {angle}°</span>
+            <input
+              type="range"
+              min={0}
+              max={359}
+              value={angle}
+              onChange={(e) => onChange(make(kind, c0, c1, +e.target.value), true)}
+              {...settle}
+            />
+          </label>
+          <div className="ep-seg">
+            {ANGLE_PRESETS.map((p) => (
+              <button
+                key={p.angle}
+                type="button"
+                title={p.title}
+                className={angle === p.angle ? 'is-active' : ''}
+                onClick={() => onChange(make(kind, c0, c1, p.angle), false)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
 
 /** Piccola icona SVG per i pulsanti degli strumenti. */
 function ToolIcon({ kind, tool }: { kind: ToolKind; tool: ToolState }) {
@@ -297,10 +403,38 @@ export function PuzzleEditor({
 
   // --- interazione con la board
 
-  const targetAt = (e: PointerEvent<SVGSVGElement>) => {
+  const targetAt = (e: PointerEvent<SVGSVGElement>): Target | null => {
     if (!svgRef.current) return null;
-    return hitTest(puzzle, clientToGrid(svgRef.current, e.clientX, e.clientY), toolTargets(tool.kind));
+    const g = clientToGrid(svgRef.current, e.clientX, e.clientY);
+    const t = hitTest(puzzle, g, toolTargets(tool.kind));
+    // Con lo strumento Uscita la direzione segue la posizione del puntatore.
+    if (t?.kind === 'point' && tool.kind === 'end') {
+      const dir = pickEndDirection(puzzle, t.at, g);
+      return dir ? { ...t, dir } : t;
+    }
+    return t;
   };
+
+  // R / Maiusc+R: ruota la direzione dell'uscita sotto il puntatore.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
+      if (e.key.toLowerCase() !== 'r' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (mode !== 'edit' || tool.kind !== 'end' || hover?.kind !== 'point') return;
+      const idx = indexPuzzle(puzzle);
+      if (getPoint(idx, hover.at)?.type !== 'end') return;
+      const dir = nextEndDirection(puzzle, hover.at, endDirection(idx, hover.at), e.shiftKey ? -1 : 1);
+      if (!dir) return;
+      e.preventDefault();
+      const r = applyTool(puzzle, tool, { ...hover, dir }, 'add');
+      commit(r.puzzle);
+      setHover({ ...hover, dir });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, tool, hover, puzzle]);
 
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
@@ -354,9 +488,17 @@ export function PuzzleEditor({
     }
     if (hover.kind === 'point') {
       const bad = tool.kind === 'end' && !remove && !autoEndDirection(indexPuzzle(puzzle), hover.at);
+      const ghost = tool.kind === 'end' && !remove && hover.dir ? DIRECTIONS[hover.dir] : null;
       return (
         <g className={`${cls}${bad ? ' ep-hover--bad' : ''}`} transform={`translate(${hover.at.x * U},${hover.at.y * U})`}>
           <circle r={30} className="ep-hover__box" />
+          {ghost && (
+            <polyline
+              className="ep-hover__ghost ep-hover__exit"
+              strokeWidth={LINE}
+              points={`0,0 ${ghost.x * EXIT_LENGTH * U},${ghost.y * EXIT_LENGTH * U}`}
+            />
+          )}
         </g>
       );
     }
@@ -459,6 +601,16 @@ export function PuzzleEditor({
       if (next[k] === '' || next[k] === undefined) delete next[k];
     });
     commit(next, true);
+  };
+
+  /** Vero mentre si trascina un selettore dello sfondo (stesso passo di annulla). */
+  const bgDragging = useRef(false);
+  const setBackground = (bg: PuzzleBackground | undefined, continuous: boolean) => {
+    const next = { ...puzzle };
+    if (bg) next.background = bg;
+    else delete next.background;
+    commit(next, bgDragging.current);
+    bgDragging.current = continuous;
   };
 
   const sizeOptions = Array.from({ length: MAX_SIZE }, (_, i) => i + 1);
@@ -715,6 +867,15 @@ export function PuzzleEditor({
             </section>
 
             <section className="ep-group">
+              <h3 className="ep-group__title">Sfondo</h3>
+              <BackgroundControls
+                value={puzzle.background}
+                onChange={setBackground}
+                onSettle={() => (bgDragging.current = false)}
+              />
+            </section>
+
+            <section className="ep-group">
               <h3 className="ep-group__title">Verifica</h3>
               {issues.map((i) => (
                 <p key={i} className="ep-notice ep-notice--error">
@@ -744,7 +905,7 @@ export function PuzzleEditor({
             <section className="ep-group">
               <h3 className="ep-group__title">File</h3>
               <div className="ep-row ep-row--wrap">
-                <button type="button" className="ep-btn ep-btn--primary" onClick={() => download(`${slug(puzzle.id || puzzle.title)}.json`, json)}>
+                <button type="button" className="ep-btn ep-btn--primary" onClick={() => downloadText(`${slugify(puzzle.id || puzzle.title)}.json`, json)}>
                   Esporta JSON
                 </button>
                 <button type="button" className="ep-btn" onClick={() => fileRef.current?.click()}>

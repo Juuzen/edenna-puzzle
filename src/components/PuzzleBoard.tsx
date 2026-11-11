@@ -1,5 +1,7 @@
-import { forwardRef, useMemo, type ReactNode, type SVGProps } from 'react';
+import { forwardRef, useId, useMemo, type ReactNode, type SVGProps } from 'react';
+import { gradientLine } from './background';
 import {
+  DEFAULT_BACKGROUND_ANGLE,
   type Coord,
   type Path,
   type Puzzle,
@@ -57,6 +59,8 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
 ) {
   const idx = indexPuzzle(puzzle);
   const { width: w, height: h } = puzzle;
+  // `useId` contiene ":" che non va bene dentro `url(#…)`.
+  const gradientId = `ep-bg${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const errSet = useMemo(() => new Set((errors ?? []).map(symbolRefKey)), [errors]);
   const elimSet = useMemo(() => new Set((eliminated ?? []).map(symbolRefKey)), [eliminated]);
   const maxPoly = useMemo(() => maxPolyominoSize(puzzle.cells), [puzzle.cells]);
@@ -122,6 +126,19 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
   }
 
   const vb = `${-MARGIN} ${-MARGIN} ${w * U + MARGIN * 2} ${h * U + MARGIN * 2}`;
+
+  // --- sfondo del pannello (se il puzzle ne ha uno, altrimenti il tema)
+  const panel = { x: -MARGIN + 6, y: -MARGIN + 6, w: w * U + MARGIN * 2 - 12, h: h * U + MARGIN * 2 - 12 };
+  const bg = puzzle.background;
+  const gradient =
+    bg && bg.colors.length === 2
+      ? {
+          from: bg.colors[0],
+          to: bg.colors[1],
+          line: gradientLine(panel.x, panel.y, panel.w, panel.h, bg.angle ?? DEFAULT_BACKGROUND_ANGLE),
+        }
+      : null;
+  const panelFill = gradient ? { fill: `url(#${gradientId})` } : bg ? { fill: bg.colors[0] } : undefined;
   return (
     <svg
       ref={ref}
@@ -131,13 +148,22 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
       aria-label={label ?? puzzle.title ?? 'Puzzle'}
       {...rest}
     >
+      {gradient && (
+        <defs>
+          <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" {...gradient.line}>
+            <stop offset="0" stopColor={gradient.from} />
+            <stop offset="1" stopColor={gradient.to} />
+          </linearGradient>
+        </defs>
+      )}
       <rect
         className="ep-panel"
-        x={-MARGIN + 6}
-        y={-MARGIN + 6}
-        width={w * U + MARGIN * 2 - 12}
-        height={h * U + MARGIN * 2 - 12}
+        x={panel.x}
+        y={panel.y}
+        width={panel.w}
+        height={panel.h}
         rx={18}
+        style={panelFill}
       />
       <g className="ep-grid" strokeWidth={LINE} strokeLinecap="round" fill="none">
         {lines}

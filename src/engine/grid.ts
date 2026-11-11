@@ -143,12 +143,19 @@ export function neighbor(c: Coord, d: Direction): Coord {
  * ricerca di windmill-client: sinistra, destra, su, giù.
  */
 export function autoEndDirection(idx: PuzzleIndex, c: Coord): Direction | null {
+  return validEndDirections(idx, c)[0] ?? null;
+}
+
+/**
+ * Tutte le direzioni verso cui un'uscita in `c` può sporgere (lati assenti o
+ * bordo della griglia), nell'ordine di `autoEndDirection`.
+ */
+export function validEndDirections(idx: PuzzleIndex, c: Coord): Direction[] {
   const order: Direction[] = ['left', 'right', 'up', 'down'];
-  for (const d of order) {
+  return order.filter((d) => {
     const n = neighbor(c, d);
-    if (!inPointBounds(idx.puzzle, n) || isEdgeAbsent(idx, edgeBetween(c, n))) return d;
-  }
-  return null;
+    return !inPointBounds(idx.puzzle, n) || isEdgeAbsent(idx, edgeBetween(c, n));
+  });
 }
 
 export function endDirection(idx: PuzzleIndex, c: Coord): Direction | null {

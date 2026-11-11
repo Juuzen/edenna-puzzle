@@ -74,8 +74,20 @@ button {
   background: #f2c230;
   color: #2a2100;
 }
-.app-theme {
+.app-restore {
   margin-left: auto;
+  border: 1px solid #3a3e46;
+  background: transparent;
+  color: #c9c5ba;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.app-restore:hover {
+  color: #fff;
+}
+.app-theme {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -95,106 +107,7 @@ button {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr);
-}
-
-/* ------------------------------------------------------------- raccolta */
-
-.library {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-right: 1px solid #e2dfd6;
-  background: #efede6;
-}
-.library-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 14px 8px;
-}
-.library-head h2 {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #77736a;
-}
-.library-count {
-  font-size: 12px;
-  color: #77736a;
-}
-.library-list {
-  list-style: none;
-  margin: 0;
-  padding: 0 8px;
-  overflow-y: auto;
-  flex: 1;
-}
-.library-list button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-.library-list button:hover {
-  background: #e6e3da;
-}
-.library-list button.is-active {
-  background: #fff;
-  border-color: #f2c230;
-}
-.lib-thumb {
-  width: 44px !important;
-  height: 44px !important;
-  flex: none;
-  pointer-events: none;
-}
-.lib-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.lib-title {
-  font-weight: 500;
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.lib-meta {
-  font-size: 11px;
-  color: #77736a;
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-}
-.library-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px 10px;
-  border-top: 1px solid #e2dfd6;
-}
-.library-actions button {
-  border: 1px solid #dcd8cd;
-  background: #fff;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.library-actions button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.library-actions .danger {
-  color: #b8323f;
+  grid-template-columns: 252px minmax(0, 1fr);
 }
 
 .app-main {
@@ -280,10 +193,8 @@ button {
   .app-body {
     grid-template-columns: 1fr;
   }
-  .library {
-    max-height: 220px;
-    border-right: 0;
-    border-bottom: 1px solid #e2dfd6;
+  .ep-library {
+    max-height: 300px;
   }
   .brand-sub {
     display: none;

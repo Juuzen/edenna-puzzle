@@ -7,6 +7,7 @@ Editor e visualizzatore di puzzle a linea nello stile di *The Witness*, in React
 - **Motore** in TypeScript puro (`src/engine`): modello, validazione, solver, import/export. Nessuna dipendenza, gira anche in Node/Electron.
 - **`<PuzzlePlayer>`**: puzzle giocabile con mouse, touch e tastiera.
 - **`<PuzzleEditor>`**: editor completo con annulla/ripeti, prova, solver, JSON modificabile a mano.
+- **`<PuzzleLibrary>`**: gestione di più raccolte con nome, export intero o selettivo, import con scelta.
 - **Formato JSON** leggibile e versionato, più import/export dei codici di The Windmill.
 
 ## Avvio
@@ -19,7 +20,8 @@ npm run build      # build della demo in dist/app
 npm run build:lib  # build della libreria in dist/lib (JS + CSS + .d.ts)
 ```
 
-La demo salva la raccolta nel `localStorage` del browser e parte dai puzzle in [`examples/`](examples/).
+La demo salva le raccolte nel `localStorage` del browser e parte dai puzzle in [`examples/`](examples/)
+(raccolta «Esempi»).
 
 ## Uso in un'altra app (es. Edenna OS)
 
@@ -68,6 +70,25 @@ import { parsePuzzle, validate, solve } from 'edenna-puzzle/engine';
 validate(puzzle, [path]).valid;
 ```
 
+### Raccolte
+
+`<PuzzleLibrary>` è controllato: lo stato (lista di `PuzzleCollection`) vive in chi lo usa, che decide
+anche dove salvarlo.
+
+```tsx
+const [collections, setCollections] = useState<PuzzleCollection[]>([{ name: 'Stanza B', puzzles }]);
+const [active, setActive] = useState({ collection: 0, puzzle: 0 });
+
+<PuzzleLibrary collections={collections} onChange={setCollections} active={active} onActiveChange={setActive} />;
+```
+
+Permette di creare, rinominare, duplicare ed eliminare raccolte; aggiungere, duplicare, riordinare ed
+eliminare puzzle; selezionarne più di uno per esportarli, copiarli in un'altra raccolta o eliminarli.
+«Importa…» apre `<ImportDialog>`: si scelgono i puzzle del file e la destinazione (aggiungi alla
+raccolta attiva, sostituiscine il contenuto, nuova raccolta) e, per gli `id` già presenti, se rinominare
+(`b12-2`), sovrascrivere o saltare. Le stesse operazioni sono disponibili come funzioni pure
+(`mergePuzzles`, `applyImport`, `moveItem`, `uniqueId`…).
+
 ### Temi
 
 Tre temi inclusi: `ep-theme-edenna` (bianco clinico e blu aziendale), `ep-theme-edenna-dark`, `ep-theme-classic`.
@@ -83,6 +104,7 @@ Un tema è solo un insieme di variabili CSS (`--ep-panel`, `--ep-line`, `--ep-pa
   "version": 1,
   "id": "altrove-b12",
   "title": "Anomalia",
+  "background": {"colors":["#eef1f5","#c9d6e8"],"angle":135},
   "width": 3,
   "height": 3,
   "symmetry": "none",
@@ -130,14 +152,22 @@ Un solo elemento per posizione.
 `symmetry`: `none`, `horizontal`, `vertical`, `rotational`. Con una simmetria il giocatore traccia
 due percorsi speculari contemporaneamente; partenze e uscite vengono sempre messe in coppia.
 
-`id`, `title`, `author`, `description` sono facoltativi. `data` è un oggetto libero che l'editor conserva
+`id`, `title`, `author`, `description` sono facoltativi.
+
+`background` (facoltativo) colora il pannello al posto del tema: `colors` con un colore (tinta unita) o
+due (gradiente lineare), in formato `#rrggbb`; `angle` in gradi come in CSS (`0` verso l'alto, `90`
+verso destra, `180` verso il basso, default). Bordo, linee e simboli restano quelli del tema.
+
+`data` è un oggetto libero che l'editor conserva
 così com'è: utile per collegare il puzzle a stanze, eventi o porte.
 
 Per le stelle contano i colori "effettivi": poliomini gialli (blu se negativi), eliminatori bianchi,
 triangoli arancioni, se non hanno un `color` esplicito. È lo stesso comportamento dell'originale.
 
-**Raccolte.** Più puzzle in un file: `{"format": "edenna-puzzle-set", "puzzles": [ ... ]}` oppure un semplice array.
-Si importano con `parsePuzzleSet`.
+**Raccolte.** Più puzzle in un file:
+`{"format": "edenna-puzzle-set", "name": "Stanza B", "description": "…", "puzzles": [ ... ]}`
+(`name`, `id` e `description` facoltativi) oppure un semplice array. `parseCollection` / `serializeCollection`
+leggono e scrivono anche i metadati; `parsePuzzleSet` / `serializePuzzleSet` solo i puzzle.
 
 **Lettura tollerante.** `parsePuzzle` scarta elementi non validi, fuori griglia o duplicati e li
 elenca in `warnings`; solo dimensioni non valide o JSON malformato sono errori.

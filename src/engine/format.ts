@@ -6,6 +6,8 @@ import {
   type EdgeItem,
   type PointItem,
   type Puzzle,
+  type PuzzleBackground,
+  type PuzzleCollection,
   type Symmetry,
   COLORS,
   FORMAT_ID,
@@ -32,6 +34,46 @@ const DIRS: Direction[] = ['up', 'down', 'left', 'right'];
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
 const isColor = (v: unknown): v is Color => typeof v === 'string' && (COLORS as string[]).includes(v);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** "#abc" / "#AABBCC" → "#aabbcc"; null se non è un colore esadecimale. */
+export function normalizeHexColor(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v.trim());
+  if (!m) return null;
+  const h = m[1].length === 3 ? [...m[1]].map((c) => c + c).join('') : m[1];
+  return `#${h.toLowerCase()}`;
+}
+
+/** Angolo in gradi riportato in [0, 360). */
+export const normalizeAngle = (a: number) => ((Math.round(a) % 360) + 360) % 360;
+
+export const DEFAULT_BACKGROUND_ANGLE = 180;
+
+/** Legge e ripulisce un campo `background`; null se non utilizzabile. */
+export function parseBackground(raw: unknown, warnings: string[] = []): PuzzleBackground | null {
+  if (raw === undefined || raw === null) return null;
+  if (!isObj(raw) || !Array.isArray(raw.colors)) {
+    warnings.push('"background" deve avere una lista "colors", ignorato.');
+    return null;
+  }
+  const colors: string[] = [];
+  raw.colors.forEach((c, i) => {
+    const n = normalizeHexColor(c);
+    if (n) colors.push(n);
+    else warnings.push(`background.colors[${i}]: colore "${String(c)}" non valido.`);
+  });
+  if (colors.length > 2) warnings.push('"background" usa al massimo 2 colori: tengo i primi due.');
+  if (!colors.length) return null;
+  if (colors.length === 1) return { colors: [colors[0]] };
+  const out: PuzzleBackground = { colors: [colors[0], colors[1]] };
+  if (raw.angle !== undefined) {
+    if (typeof raw.angle === 'number' && Number.isFinite(raw.angle)) {
+      const a = normalizeAngle(raw.angle);
+      if (a !== DEFAULT_BACKGROUND_ANGLE) out.angle = a;
+    } else warnings.push('background.angle non valido, uso 180.');
+  }
+  return out;
+}
 
 /**
  * Legge un puzzle da testo JSON o da oggetto già parsato.
@@ -158,6 +200,8 @@ export function parsePuzzle(input: string | unknown): ParseResult {
     }
   });
 
+  const background = parseBackground(raw.background, warnings);
+
   const puzzle: Puzzle = {
     format: FORMAT_ID,
     version: FORMAT_VERSION,
@@ -165,6 +209,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
     ...(typeof raw.title === 'string' ? { title: raw.title } : {}),
     ...(typeof raw.author === 'string' ? { author: raw.author } : {}),
     ...(typeof raw.description === 'string' ? { description: raw.description } : {}),
+    ...(background ? { background } : {}),
     ...(isObj(raw.data) ? { data: raw.data } : {}),
     width,
     height,
@@ -197,6 +242,46 @@ export function parsePuzzleSet(input: string | unknown): ParseResult[] {
   return [parsePuzzle(raw)];
 }
 
+export const SET_FORMAT_ID = `${FORMAT_ID}-set`;
+
+export interface CollectionParseResult {
+  collection: PuzzleCollection;
+  /** Un risultato per puzzle, con i rispettivi avvisi. */
+  results: ParseResult[];
+}
+
+/**
+ * Legge una raccolta con i suoi metadati (`name`, `id`, `description`).
+ * Accetta anche un array semplice, un singolo puzzle o un codice Windmill:
+ * in quel caso il nome è il titolo del puzzle o `fallbackName`.
+ */
+export function parseCollection(input: string | unknown, fallbackName = 'Importata'): CollectionParseResult {
+  let raw: unknown = input;
+  let results: ParseResult[];
+  if (typeof input === 'string' && /^[A-Za-z0-9_\-+/=]+_0$/.test(input.trim())) {
+    results = [parsePuzzle(input)];
+  } else {
+    if (typeof input === 'string') {
+      try {
+        raw = JSON.parse(input);
+      } catch (e) {
+        throw new PuzzleFormatError(`JSON non valido: ${(e as Error).message}`);
+      }
+    }
+    results = parsePuzzleSet(raw);
+  }
+  const meta = isObj(raw) && Array.isArray(raw.puzzles) ? raw : null;
+  const metaName = meta && typeof meta.name === 'string' ? meta.name.trim() : '';
+  const name = metaName || (results.length === 1 && results[0].puzzle.title) || fallbackName;
+  const collection: PuzzleCollection = {
+    ...(meta && typeof meta.id === 'string' && meta.id ? { id: meta.id } : {}),
+    name,
+    ...(meta && typeof meta.description === 'string' && meta.description ? { description: meta.description } : {}),
+    puzzles: results.map((r) => r.puzzle),
+  };
+  return { collection, results };
+}
+
 // ---------------------------------------------------------------------------
 // Serializzazione: JSON leggibile, un elemento per riga, ordine stabile.
 
@@ -215,6 +300,7 @@ function canonical<T extends object>(item: T): T {
 }
 
 export function toPuzzleObject(p: Puzzle): Puzzle {
+  const background = p.background ? parseBackground(p.background) : null;
   const out: Puzzle = {
     format: FORMAT_ID,
     version: FORMAT_VERSION,
@@ -222,6 +308,7 @@ export function toPuzzleObject(p: Puzzle): Puzzle {
     ...(p.title ? { title: p.title } : {}),
     ...(p.author ? { author: p.author } : {}),
     ...(p.description ? { description: p.description } : {}),
+    ...(background ? { background } : {}),
     width: p.width,
     height: p.height,
     symmetry: p.symmetry,
@@ -246,6 +333,19 @@ export function serializePuzzle(p: Puzzle): string {
 }
 
 export function serializePuzzleSet(puzzles: Puzzle[]): string {
+  return serializeCollectionBody(puzzles, []);
+}
+
+/** Come `serializePuzzleSet`, con in testa id, nome e descrizione della raccolta. */
+export function serializeCollection(c: PuzzleCollection): string {
+  const head: string[] = [];
+  if (c.id) head.push(`  "id": ${JSON.stringify(c.id)}`);
+  head.push(`  "name": ${JSON.stringify(c.name)}`);
+  if (c.description) head.push(`  "description": ${JSON.stringify(c.description)}`);
+  return serializeCollectionBody(c.puzzles, head);
+}
+
+function serializeCollectionBody(puzzles: Puzzle[], head: string[]): string {
   const body = puzzles.map((p) =>
     serializePuzzle(p)
       .trimEnd()
@@ -253,7 +353,9 @@ export function serializePuzzleSet(puzzles: Puzzle[]): string {
       .map((l) => `    ${l}`)
       .join('\n'),
   );
-  return `{\n  "format": "${FORMAT_ID}-set",\n  "puzzles": [\n${body.join(',\n')}\n  ]\n}\n`;
+  const lines = [`  "format": "${SET_FORMAT_ID}"`, ...head];
+  const list = body.length ? `[\n${body.join(',\n')}\n  ]` : '[]';
+  return `{\n${lines.join(',\n')},\n  "puzzles": ${list}\n}\n`;
 }
 
 // ---------------------------------------------------------------------------

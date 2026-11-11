@@ -1,0 +1,344 @@
+/*
+ * Raccolte (PuzzleLibrary) e finestra di importazione (ImportDialog).
+ * Stesso stile "fuori gioco" dell'editor; le miniature usano il tema in-game.
+ */
+
+.ep-library,
+.ep-import {
+  --ed-bg: #f6f5f1;
+  --ed-side: #efede6;
+  --ed-surface: #ffffff;
+  --ed-border: #e2dfd6;
+  --ed-text: #23221f;
+  --ed-muted: #77736a;
+  --ed-accent: #f2c230;
+  --ed-accent-ink: #3a2e00;
+  --ed-danger: #b8323f;
+  --ed-ok: #1d7f5a;
+
+  color: var(--ed-text);
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.ep-library button,
+.ep-library input,
+.ep-library select,
+.ep-import button,
+.ep-import input {
+  font: inherit;
+  color: inherit;
+}
+
+.ep-library {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border-right: 1px solid var(--ed-border);
+  background: var(--ed-side);
+}
+
+.ep-library__head {
+  padding: 12px 10px 6px;
+}
+.ep-library__name {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--ed-border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: var(--ed-surface);
+  font-weight: 600 !important;
+}
+.ep-library__name:focus {
+  outline: 2px solid var(--ed-accent);
+  outline-offset: -1px;
+}
+
+.ep-library__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ed-muted);
+}
+.ep-library__bar button {
+  border: 0;
+  background: transparent;
+  color: var(--ed-muted);
+  font-size: 12px !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.ep-library__bar button:hover,
+.ep-library__bar button.is-active {
+  color: var(--ed-text);
+  background: #e6e3da;
+}
+
+.ep-library__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.ep-library__list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.ep-library__list button:hover {
+  background: #e6e3da;
+}
+.ep-library__list button.is-active {
+  background: var(--ed-surface);
+  border-color: var(--ed-accent);
+}
+.ep-library__list button.is-selected {
+  background: #fbf3d6;
+}
+.ep-library__list input[type='checkbox'] {
+  margin: 0;
+  pointer-events: none;
+  accent-color: var(--ed-accent);
+}
+
+.ep-library__thumb {
+  width: 44px !important;
+  height: 44px !important;
+  flex: none;
+  pointer-events: none;
+}
+.ep-library__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ep-library__title {
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ep-library__meta {
+  font-size: 11px;
+  color: var(--ed-muted);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.ep-library__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ed-border);
+}
+.ep-library__actions--top {
+  border-top: 0;
+  padding-top: 0;
+}
+.ep-library__actions button,
+.ep-library__actions select {
+  border: 1px solid #dcd8cd;
+  background: var(--ed-surface);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px !important;
+  cursor: pointer;
+}
+.ep-library__actions button:disabled,
+.ep-library__actions select:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ep-library .is-danger {
+  color: var(--ed-danger);
+}
+
+.ep-library__notice {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 12px;
+}
+.ep-library__notice--ok { color: var(--ed-ok); }
+.ep-library__notice--error { color: var(--ed-danger); }
+
+/* --------------------------------------------------------- importazione */
+
+.ep-import {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  border: 1px solid var(--ed-border);
+  border-radius: 12px;
+  background: var(--ed-bg);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+.ep-import::backdrop {
+  background: rgba(20, 20, 18, 0.45);
+}
+.ep-import__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  max-height: calc(100vh - 50px);
+  box-sizing: border-box;
+}
+.ep-import__head h2 {
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.ep-import__head .ep-muted,
+.ep-import .ep-muted {
+  color: var(--ed-muted);
+  font-size: 13px;
+}
+.ep-import__bulk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ep-import__bulk button {
+  border: 1px solid #dcd8cd;
+  background: var(--ed-surface);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px !important;
+  cursor: pointer;
+}
+.ep-import__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  min-height: 80px;
+  flex: 1;
+  border: 1px solid var(--ed-border);
+  border-radius: 9px;
+  background: var(--ed-surface);
+}
+.ep-import__list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+.ep-import__list label.is-on {
+  opacity: 1;
+}
+.ep-import__list label:hover {
+  background: #f4f2ec;
+}
+.ep-import__list input {
+  accent-color: var(--ed-accent);
+}
+.ep-import__badge,
+.ep-import__warn {
+  align-self: flex-start;
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-top: 2px;
+}
+.ep-import__badge {
+  background: #fbe9c4;
+  color: #6b4b00;
+}
+.ep-import__warn {
+  background: #f6dcdf;
+  color: var(--ed-danger);
+}
+.ep-import__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--ed-border);
+  border-radius: 9px;
+}
+.ep-import__opts legend {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ed-muted);
+  padding: 0 4px;
+}
+.ep-import__opts label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.ep-import__opts input[type='radio'] {
+  accent-color: var(--ed-accent);
+}
+.ep-import__new input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--ed-border);
+  border-radius: 6px;
+  padding: 3px 7px;
+  background: var(--ed-surface);
+}
+.ep-import .ep-notice {
+  margin: 0;
+  font-size: 13px;
+}
+.ep-import .ep-notice--error {
+  color: var(--ed-danger);
+}
+.ep-import__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ep-import .ep-btn {
+  border: 1px solid var(--ed-border);
+  background: var(--ed-surface);
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.ep-import .ep-btn--primary {
+  background: var(--ed-accent);
+  border-color: var(--ed-accent);
+  color: var(--ed-accent-ink);
+}
+.ep-import .ep-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  .ep-library {
+    border-right: 0;
+    border-bottom: 1px solid var(--ed-border);
+  }
+}

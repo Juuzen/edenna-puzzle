@@ -121,6 +121,12 @@
   stroke-width: 2;
 }
 
+/* Simboli composti da forme sovrapposte: contorno esterno unico (vedi Merged). */
+.ep-white-under {
+  stroke: var(--ep-white-outline);
+  stroke-width: 4;
+}
+
 /* ------------------------------------------------------------------ path */
 
 .ep-path {

@@ -7,10 +7,14 @@ import {
   fitPolyominoes,
   indexPuzzle,
   orientations,
+  parseCollection,
   parsePuzzle,
+  parsePuzzleSet,
   reflectPoint,
   resizePuzzle,
+  serializeCollection,
   serializePuzzle,
+  serializePuzzleSet,
   setCell,
   setEdge,
   setPoint,
@@ -372,5 +376,64 @@ describe('solver', () => {
     const r = solve(p);
     expect(r.solutions.length).toBe(1);
     expect(r.solutions[0]).toHaveLength(2);
+  });
+});
+
+describe('sfondo del puzzle', () => {
+  it('andata e ritorno di tinta unita e gradiente', () => {
+    for (const background of [{ colors: ['#112233'] }, { colors: ['#112233', '#aabbcc'], angle: 45 }] as Puzzle['background'][]) {
+      const p = { ...base(), background };
+      const { puzzle, warnings } = parsePuzzle(serializePuzzle(p));
+      expect(warnings).toEqual([]);
+      expect(puzzle.background).toEqual(background);
+    }
+  });
+
+  it('normalizza colori e angolo', () => {
+    const read = (background: unknown) => parsePuzzle({ width: 2, height: 2, background });
+    expect(read({ colors: ['#ABC'] }).puzzle.background).toEqual({ colors: ['#aabbcc'] });
+    // angolo ignorato con un solo colore, 180 è il default e non viene scritto
+    expect(read({ colors: ['#000000'], angle: 30 }).puzzle.background).toEqual({ colors: ['#000000'] });
+    expect(read({ colors: ['#000000', '#ffffff'], angle: 180 }).puzzle.background).toEqual({ colors: ['#000000', '#ffffff'] });
+    expect(read({ colors: ['#000000', '#ffffff'], angle: -90 }).puzzle.background?.angle).toBe(270);
+    expect(read({ colors: ['#000000', '#ffffff'], angle: 720 }).puzzle.background?.angle).toBe(0);
+  });
+
+  it('scarta colori non validi con avvisi', () => {
+    const r = parsePuzzle({ width: 2, height: 2, background: { colors: ['rosso', '#00ff00'] } });
+    expect(r.puzzle.background).toEqual({ colors: ['#00ff00'] });
+    expect(r.warnings.some((w) => w.includes('rosso'))).toBe(true);
+    const none = parsePuzzle({ width: 2, height: 2, background: { colors: ['boh'] } });
+    expect(none.puzzle.background).toBeUndefined();
+    expect(parsePuzzle({ width: 2, height: 2, background: 'blu' }).warnings.length).toBeGreaterThan(0);
+  });
+
+  it('le modifiche del puzzle conservano lo sfondo', () => {
+    const p = { ...base(3, 3), background: { colors: ['#123456'] as [string] } };
+    expect(setEdge(p, { x: 0, y: 0, dir: 'h' }, 'gap').background).toEqual(p.background);
+    expect(resizePuzzle(p, 4, 4).background).toEqual(p.background);
+  });
+});
+
+describe('raccolte', () => {
+  it('andata e ritorno con nome e descrizione', () => {
+    const c = { id: 'b', name: 'Stanza B', description: 'Piano terra', puzzles: [base(), base(3, 3)] };
+    const { collection, results } = parseCollection(serializeCollection(c));
+    expect(collection).toEqual({ ...c, puzzles: results.map((r) => r.puzzle) });
+    expect(collection.puzzles.map((p) => p.width)).toEqual([2, 3]);
+  });
+
+  it('raccolta vuota', () => {
+    const { collection } = parseCollection(serializeCollection({ name: 'Vuota', puzzles: [] }));
+    expect(collection).toEqual({ name: 'Vuota', puzzles: [] });
+  });
+
+  it('i vecchi formati si leggono ancora', () => {
+    const list = [base(), base(3, 3)];
+    expect(parseCollection(serializePuzzleSet(list), 'file').collection.name).toBe('file');
+    expect(parseCollection(JSON.stringify(list)).collection.puzzles).toHaveLength(2);
+    expect(parsePuzzleSet(serializeCollection({ name: 'x', puzzles: list }))).toHaveLength(2);
+    // un puzzle singolo prende il nome dal titolo
+    expect(parseCollection(serializePuzzle({ ...base(), title: 'Solo' })).collection.name).toBe('Solo');
   });
 });

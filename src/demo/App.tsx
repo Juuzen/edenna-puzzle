@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ImportDialog,
   PuzzleEditor,
+  PuzzleLibrary,
   PuzzlePlayer,
-  PuzzleBoard,
-  createPuzzle,
+  backgroundCss,
+  newCollection,
+  parseCollection,
   parsePuzzle,
   parsePuzzleSet,
-  serializePuzzleSet,
+  replaceAt,
+  serializeCollection,
+  type ImportSource,
+  type LibraryPosition,
   type Puzzle,
+  type PuzzleCollection,
 } from '../index';
 
 /** Esempi inclusi nel repository (cartella /examples). */
@@ -17,26 +24,46 @@ const EXAMPLES: Puzzle[] = Object.entries(
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([, raw]) => parsePuzzle(raw).puzzle);
 
-const STORAGE_KEY = 'edenna-puzzle:library';
+const EXAMPLES_NAME = 'Esempi';
+const STORAGE_KEY = 'edenna-puzzle:collections';
+/** Chiave della vecchia raccolta unica: viene migrata alla prima apertura. */
+const LEGACY_KEY = 'edenna-puzzle:library';
 
-interface Entry {
-  key: string;
-  puzzle: Puzzle;
-}
+const examplesCollection = (): PuzzleCollection => ({ name: EXAMPLES_NAME, puzzles: EXAMPLES });
 
-const newKey = () => Math.random().toString(36).slice(2, 10);
-
-function loadLibrary(): Entry[] {
+function loadCollections(): PuzzleCollection[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const list = parsePuzzleSet(raw).map((r) => ({ key: newKey(), puzzle: r.puzzle }));
+      const data = JSON.parse(raw) as { collections?: unknown[] };
+      const list = (data.collections ?? [])
+        .map((c) => parseCollection(c).collection)
+        .filter((c) => c.puzzles.length);
       if (list.length) return list;
     }
   } catch {
-    /* archivio assente o corrotto: si riparte dagli esempi */
+    /* archivio corrotto: si prova la vecchia chiave, poi gli esempi */
   }
-  return EXAMPLES.map((puzzle) => ({ key: newKey(), puzzle }));
+  try {
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy) {
+      const puzzles = parsePuzzleSet(legacy).map((r) => r.puzzle);
+      if (puzzles.length) return [{ name: 'La mia raccolta', puzzles }];
+    }
+  } catch {
+    /* ignorato */
+  }
+  return [examplesCollection()];
+}
+
+function saveCollections(list: PuzzleCollection[]) {
+  try {
+    const collections = list.map((c) => JSON.parse(serializeCollection(c)));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ collections }));
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* storage pieno o non disponibile */
+  }
 }
 
 const THEMES = [
@@ -46,83 +73,50 @@ const THEMES = [
 ];
 
 export function App() {
-  const [library, setLibrary] = useState<Entry[]>(loadLibrary);
-  const [selected, setSelected] = useState(0);
+  const [collections, setCollections] = useState<PuzzleCollection[]>(loadCollections);
+  const [active, setActive] = useState<LibraryPosition>({ collection: 0, puzzle: 0 });
   const [view, setView] = useState<'edit' | 'play'>('edit');
   const [theme, setTheme] = useState(THEMES[0].id);
-  const [solved, setSolved] = useState<Record<string, boolean>>({});
+  const [solved, setSolved] = useState<Set<Puzzle>>(new Set());
   const [playKey, setPlayKey] = useState(0);
-  const fileRef = useRef<HTMLInputElement>(null);
+  /** Raccolta incollata nell'editor (scheda JSON) in attesa di conferma. */
+  const [pasted, setPasted] = useState<ImportSource | null>(null);
 
-  const current = library[Math.min(selected, library.length - 1)];
+  const ci = Math.min(active.collection, collections.length - 1);
+  const col = collections[ci];
+  const pi = Math.min(active.puzzle, col.puzzles.length - 1);
+  const current = col.puzzles[pi];
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, serializePuzzleSet(library.map((e) => e.puzzle)));
-    } catch {
-      /* storage pieno o non disponibile */
-    }
-  }, [library]);
+  useEffect(() => saveCollections(collections), [collections]);
 
   const update = (p: Puzzle) =>
-    setLibrary((lib) => lib.map((e) => (e.key === current.key ? { ...e, puzzle: p } : e)));
-
-  const add = (puzzles: Puzzle[]) => {
-    setLibrary((lib) => [...lib, ...puzzles.map((puzzle) => ({ key: newKey(), puzzle }))]);
-    setSelected(library.length);
-  };
-
-  const remove = () => {
-    if (library.length <= 1) return;
-    if (!confirm(`Eliminare «${current.puzzle.title || 'senza titolo'}» dalla raccolta?`)) return;
-    setLibrary((lib) => lib.filter((e) => e.key !== current.key));
-    setSelected((s) => Math.max(0, s - 1));
-  };
-
-  const move = (delta: number) => {
-    const i = selected;
-    const j = i + delta;
-    if (j < 0 || j >= library.length) return;
-    setLibrary((lib) => {
-      const out = [...lib];
-      [out[i], out[j]] = [out[j], out[i]];
-      return out;
-    });
-    setSelected(j);
-  };
-
-  const exportSet = () => {
-    const blob = new Blob([serializePuzzleSet(library.map((e) => e.puzzle))], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'raccolta-puzzle.json';
-    a.click();
-  };
-
-  const importSet = async (f?: File) => {
-    if (!f) return;
-    try {
-      add(parsePuzzleSet(await f.text()).map((r) => r.puzzle));
-    } catch (e) {
-      alert((e as Error).message);
-    }
-    if (fileRef.current) fileRef.current.value = '';
-  };
+    setCollections((list) =>
+      replaceAt(list, ci, { ...list[ci], puzzles: replaceAt(list[ci].puzzles, pi, p) }),
+    );
 
   const playNext = (delta: number) => {
-    setSelected((s) => (s + delta + library.length) % library.length);
+    const n = col.puzzles.length;
+    setActive({ collection: ci, puzzle: (pi + delta + n) % n });
     setPlayKey((k) => k + 1);
   };
 
-  const label = (p: Puzzle, i: number) => p.title || `Puzzle ${i + 1}`;
+  const restoreExamples = () => {
+    const i = collections.findIndex((c) => c.name === EXAMPLES_NAME);
+    const msg =
+      i >= 0
+        ? `Ripristinare la raccolta «${EXAMPLES_NAME}» con gli esempi originali?`
+        : `Aggiungere la raccolta «${EXAMPLES_NAME}» con gli esempi originali?`;
+    if (!confirm(msg)) return;
+    if (i >= 0) {
+      setCollections(replaceAt(collections, i, examplesCollection()));
+      setActive({ collection: i, puzzle: 0 });
+    } else {
+      setCollections([...collections, newCollection(EXAMPLES_NAME, collections, EXAMPLES)]);
+      setActive({ collection: collections.length, puzzle: 0 });
+    }
+  };
 
-  const thumbs = useMemo(
-    () =>
-      library.map((e) => (
-        <PuzzleBoard key={e.key} puzzle={e.puzzle} className="lib-thumb" aria-hidden label="" />
-      )),
-    [library],
-  );
+  const label = (p: Puzzle, i: number) => p.title || `Puzzle ${i + 1}`;
 
   return (
     <div className={`app ${theme}`}>
@@ -148,6 +142,9 @@ export function App() {
             Gioca
           </button>
         </nav>
+        <button className="app-restore" onClick={restoreExamples}>
+          Ripristina esempi
+        </button>
         <label className="app-theme">
           <span>Tema</span>
           <select value={theme} onChange={(e) => setTheme(e.target.value)}>
@@ -161,85 +158,48 @@ export function App() {
       </header>
 
       <div className="app-body">
-        <aside className="library" aria-label="Raccolta">
-          <div className="library-head">
-            <h2>Raccolta</h2>
-            <span className="library-count">{library.length}</span>
-          </div>
-          <ol className="library-list">
-            {library.map((e, i) => (
-              <li key={e.key}>
-                <button className={i === selected ? 'is-active' : ''} onClick={() => setSelected(i)}>
-                  {thumbs[i]}
-                  <span className="lib-text">
-                    <span className="lib-title">{label(e.puzzle, i)}</span>
-                    <span className="lib-meta">
-                      {e.puzzle.id ?? '—'} · {e.puzzle.width}×{e.puzzle.height}
-                      {solved[e.key] ? ' · ✓' : ''}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-          <div className="library-actions">
-            <button onClick={() => add([createPuzzle(4, 4)])}>+ Nuovo</button>
-            <button onClick={() => add([{ ...current.puzzle, id: current.puzzle.id ? `${current.puzzle.id}-copia` : undefined }])}>
-              Duplica
-            </button>
-            <button onClick={() => move(-1)} title="Sposta su">
-              ↑
-            </button>
-            <button onClick={() => move(1)} title="Sposta giù">
-              ↓
-            </button>
-            <button onClick={remove} disabled={library.length <= 1} className="danger">
-              Elimina
-            </button>
-          </div>
-          <div className="library-actions">
-            <button onClick={exportSet}>Esporta raccolta</button>
-            <button onClick={() => fileRef.current?.click()}>Importa…</button>
-            <button
-              onClick={() => {
-                if (confirm('Sostituire la raccolta con gli esempi originali?')) {
-                  setLibrary(EXAMPLES.map((puzzle) => ({ key: newKey(), puzzle })));
-                  setSelected(0);
-                }
-              }}
-            >
-              Ripristina esempi
-            </button>
-          </div>
-          <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => importSet(e.target.files?.[0])} />
-        </aside>
+        <PuzzleLibrary
+          collections={collections}
+          onChange={setCollections}
+          active={{ collection: ci, puzzle: pi }}
+          onActiveChange={setActive}
+          isSolved={(p) => solved.has(p)}
+          theme={theme}
+        />
 
         <main className="app-main">
           {view === 'edit' ? (
-            <PuzzleEditor value={current.puzzle} onChange={update} onImportSet={add} theme={theme} />
+            <PuzzleEditor
+              value={current}
+              onChange={update}
+              onImportSet={(puzzles) =>
+                setPasted({ name: 'Incollata', results: puzzles.map((puzzle) => ({ puzzle, warnings: [] })) })
+              }
+              theme={theme}
+            />
           ) : (
-            <div className="play">
+            <div className="play" style={current.background ? { background: backgroundCss(current.background) } : undefined}>
               <div className="play-head">
                 <button onClick={() => playNext(-1)} aria-label="Precedente">
                   ‹
                 </button>
                 <div>
-                  <h1>{label(current.puzzle, selected)}</h1>
-                  {current.puzzle.description && <p>{current.puzzle.description}</p>}
+                  <h1>{label(current, pi)}</h1>
+                  {current.description && <p>{current.description}</p>}
                 </div>
                 <button onClick={() => playNext(1)} aria-label="Successivo">
                   ›
                 </button>
               </div>
               <PuzzlePlayer
-                key={`${current.key}-${playKey}`}
-                puzzle={current.puzzle}
+                key={`${ci}-${pi}-${playKey}`}
+                puzzle={current}
                 theme={theme}
                 className="play-board"
-                onSolve={() => setSolved((s) => ({ ...s, [current.key]: true }))}
+                onSolve={() => setSolved((s) => new Set(s).add(current))}
               />
               <div className="play-foot">
-                {solved[current.key] ? (
+                {solved.has(current) ? (
                   <>
                     <span className="ok">Completato.</span>
                     <button onClick={() => setPlayKey((k) => k + 1)}>Ricomincia</button>
@@ -253,6 +213,19 @@ export function App() {
           )}
         </main>
       </div>
+
+      <ImportDialog
+        source={pasted}
+        collections={collections}
+        target={ci}
+        theme={theme}
+        onCancel={() => setPasted(null)}
+        onConfirm={(r) => {
+          setPasted(null);
+          setCollections(r.collections);
+          setActive({ collection: r.collection, puzzle: Math.max(0, r.puzzles.length - r.added) });
+        }}
+      />
     </div>
   );
 }

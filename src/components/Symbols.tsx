@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { CellItem, CellSpec, Color } from '../engine';
 import { shapeToGrid, symbolColor } from '../engine';
 
@@ -19,6 +20,23 @@ interface SymbolProps {
   maxPolySize?: number;
 }
 
+/**
+ * Forme sovrapposte che compongono un unico simbolo. Per il bianco il bordo
+ * si disegna prima sotto a tutte le forme (più spesso) e poi si copre con il
+ * solo riempimento: i bordi interni della sovrapposizione non si vedono.
+ */
+function Merged({ white, paint, children }: { white: boolean; paint: { fill: string }; children: ReactNode }) {
+  if (!white) return <g style={paint}>{children}</g>;
+  return (
+    <>
+      <g className="ep-white-under" style={paint}>
+        {children}
+      </g>
+      <g style={paint}>{children}</g>
+    </>
+  );
+}
+
 /** Disegna un simbolo di cella centrato nell'origine. */
 export function CellSymbol({ item, maxPolySize = 4 }: SymbolProps) {
   const full = item as CellItem;
@@ -33,18 +51,18 @@ export function CellSymbol({ item, maxPolySize = 4 }: SymbolProps) {
       return <rect className={cls} x={-20} y={-20} width={40} height={40} rx={13} style={paint} />;
     case 'star':
       return (
-        <g className={cls} style={paint}>
+        <Merged white={!!cls} paint={paint}>
           <rect x={-15} y={-15} width={30} height={30} />
           <rect x={-15} y={-15} width={30} height={30} transform="rotate(45)" />
-        </g>
+        </Merged>
       );
     case 'eliminator':
       return (
-        <g className={cls} style={paint}>
+        <Merged white={!!cls} paint={paint}>
           {[-90, 30, 150].map((a) => (
             <rect key={a} x={0} y={-4} width={16} height={8} transform={`rotate(${a})`} />
           ))}
-        </g>
+        </Merged>
       );
     case 'triangle': {
       const r = 9;

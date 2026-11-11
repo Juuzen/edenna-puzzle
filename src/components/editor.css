@@ -266,6 +266,26 @@
   background: #fbfaf7;
 }
 
+/* Sfondo del puzzle */
+.ep-bg { display: flex; align-items: center; gap: 8px; }
+.ep-bg__preview {
+  flex: 1;
+  height: 32px;
+  border-radius: 7px;
+  border: 1px solid var(--ed-border);
+}
+.ep-bg input[type='color'] {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--ed-border);
+  border-radius: 7px;
+  background: var(--ed-surface);
+  cursor: pointer;
+}
+.ep-bg__swap { padding: 6px 8px; }
+.ep-field input[type='range'] { padding: 0; border: 0; background: none; accent-color: var(--ed-accent); }
+
 .ep-note { margin: 0; font-size: 12px; color: var(--ed-muted); }
 .ep-muted { color: var(--ed-muted); }
 .ep-notice { margin: 0; }
@@ -291,6 +311,11 @@
   stroke-dasharray: 4 6;
 }
 .ep-hover__ghost { opacity: 0.45; }
+.ep-hover__exit {
+  fill: none;
+  stroke: var(--ep-line);
+  stroke-linecap: round;
+}
 .ep-hover { pointer-events: none; }
 
 /* ------------------------------------------------------------ responsive */

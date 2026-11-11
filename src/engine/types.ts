@@ -103,11 +103,21 @@ export type PointSpec = DistributiveOmit<PointItem, 'x' | 'y'>;
 export type PointType = PointItem['type'];
 export type EdgeType = EdgeItem['type'];
 
+/** Sfondo del pannello: tinta unita o gradiente lineare di due colori. */
+export interface PuzzleBackground {
+  /** 1 colore = tinta unita, 2 = gradiente. Formato "#rrggbb". */
+  colors: [string] | [string, string];
+  /** Gradi, convenzione CSS (0 = verso l'alto, 90 = verso destra, 180 = verso il basso). Default 180. */
+  angle?: number;
+}
+
 export interface PuzzleMeta {
   id?: string;
   title?: string;
   author?: string;
   description?: string;
+  /** Se manca si usa il colore del tema. */
+  background?: PuzzleBackground;
   /** Campo libero per l'applicazione che ospita il puzzle (es. Edenna OS). */
   data?: Record<string, unknown>;
 }
@@ -121,6 +131,14 @@ export interface Puzzle extends PuzzleMeta {
   points: PointItem[];
   edges: EdgeItem[];
   cells: CellItem[];
+}
+
+/** Raccolta di puzzle con nome (file `edenna-puzzle-set`). */
+export interface PuzzleCollection {
+  id?: string;
+  name: string;
+  description?: string;
+  puzzles: Puzzle[];
 }
 
 export interface Coord {

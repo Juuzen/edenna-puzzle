@@ -2,9 +2,11 @@ import {
   type CellSpec,
   type Color,
   type Coord,
+  type Direction,
   type EdgeRef,
   type Puzzle,
-  autoEndDirection,
+  DIRECTIONS,
+  endDirection,
   getCell,
   getEdge,
   getPoint,
@@ -16,6 +18,7 @@ import {
   setCell,
   setEdge,
   setPoint,
+  validEndDirections,
 } from '../engine';
 
 export type ToolKind =
@@ -76,12 +79,56 @@ export const DEFAULT_TOOL: ToolState = {
 };
 
 export type Target =
-  | { kind: 'point'; at: Coord }
+  /** `dir`: direzione scelta per un'uscita (solo con lo strumento Uscita). */
+  | { kind: 'point'; at: Coord; dir?: Direction }
   | { kind: 'edge'; at: EdgeRef }
   | { kind: 'cell'; at: Coord };
 
 export const targetKey = (t: Target) =>
-  t.kind === 'edge' ? `e${t.at.x},${t.at.y},${t.at.dir}` : `${t.kind[0]}${t.at.x},${t.at.y}`;
+  t.kind === 'edge'
+    ? `e${t.at.x},${t.at.y},${t.at.dir}`
+    : `${t.kind[0]}${t.at.x},${t.at.y}${t.kind === 'point' && t.dir ? `,${t.dir}` : ''}`;
+
+/** Sotto questa distanza (in celle) dal punto la direzione non segue il puntatore. */
+const END_DIR_DEADZONE = 0.08;
+
+/**
+ * Direzione d'uscita da usare in `at` con il puntatore in `g`: fra quelle
+ * valide, la più allineata allo scostamento del puntatore dal punto. Vicino
+ * al centro resta quella attuale (o l'automatica).
+ */
+export function pickEndDirection(p: Puzzle, at: Coord, g: Coord): Direction | null {
+  const idx = indexPuzzle(p);
+  const valid = validEndDirections(idx, at);
+  if (!valid.length) return null;
+  const dx = g.x - at.x;
+  const dy = g.y - at.y;
+  if (Math.hypot(dx, dy) < END_DIR_DEADZONE) {
+    const cur = getPoint(idx, at)?.type === 'end' ? endDirection(idx, at) : null;
+    return cur && valid.includes(cur) ? cur : valid[0];
+  }
+  let best = valid[0];
+  let bestDot = -Infinity;
+  for (const d of valid) {
+    const dot = DIRECTIONS[d].x * dx + DIRECTIONS[d].y * dy;
+    if (dot > bestDot + 1e-9) {
+      best = d;
+      bestDot = dot;
+    }
+  }
+  return best;
+}
+
+/** Direzione successiva (in senso orario) fra quelle valide per un'uscita. */
+export function nextEndDirection(p: Puzzle, at: Coord, from: Direction | null, step: 1 | -1 = 1): Direction | null {
+  const valid = validEndDirections(indexPuzzle(p), at);
+  if (!valid.length) return null;
+  const cw: Direction[] = ['up', 'right', 'down', 'left'];
+  const sorted = cw.filter((d) => valid.includes(d));
+  const i = from ? sorted.indexOf(from) : -1;
+  if (i < 0) return sorted[0];
+  return sorted[(i + step + sorted.length) % sorted.length];
+}
 
 type TargetKind = Target['kind'];
 
@@ -164,7 +211,11 @@ export function isAlreadyThere(p: Puzzle, tool: ToolState, t: Target): boolean {
   const idx = indexPuzzle(p);
   if (t.kind === 'point') {
     const cur = getPoint(idx, t.at);
-    return !!cur && (tool.kind === cur.type || tool.kind === 'erase');
+    if (!cur) return false;
+    if (tool.kind === 'erase') return true;
+    // Un'uscita con un'altra direzione non è "già lì": il clic la cambia.
+    if (tool.kind === 'end' && cur.type === 'end' && t.dir) return endDirection(idx, t.at) === t.dir;
+    return tool.kind === cur.type;
   }
   if (t.kind === 'edge') {
     const cur = getEdge(idx, t.at);
@@ -201,10 +252,16 @@ export function applyTool(p: Puzzle, tool: ToolState, t: Target, mode: 'add' | '
   }
   if (t.kind === 'point') {
     if (tool.kind === 'end') {
-      if (!autoEndDirection(indexPuzzle(p), t.at)) {
+      const valid = validEndDirections(indexPuzzle(p), t.at);
+      if (!valid.length) {
         return { puzzle: p, notice: 'Le uscite vanno sul bordo o accanto a un lato assente.' };
       }
-      return { puzzle: setPoint(p, t.at, { type: 'end' }) };
+      const dir = t.dir && valid.includes(t.dir) ? t.dir : valid[0];
+      // `dir` si salva solo se serve: se coincide con quella automatica il
+      // JSON resta pulito. In simmetria serve sempre, perché la gemella
+      // riceva la direzione riflessa.
+      const explicit = dir !== valid[0] || p.symmetry !== 'none';
+      return { puzzle: setPoint(p, t.at, explicit ? { type: 'end', dir } : { type: 'end' }) };
     }
     if (tool.kind === 'start' || tool.kind === 'hexagon') return { puzzle: setPoint(p, t.at, { type: tool.kind }) };
     return { puzzle: p };
