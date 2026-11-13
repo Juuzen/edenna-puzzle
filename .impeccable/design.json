@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-13T00:00:00Z",
+  "title": "Design System: edenna-puzzle",
+  "extensions": {
+    "colorMeta": {
+      "ed-accent": { "role": "primary", "displayName": "Giallo Segnalatore", "canonical": "#f2c230", "tonalRamp": ["#3a2e00", "#6b5500", "#9c7d00", "#cc9f0a", "#f2c230", "#f6d462", "#fae59a", "#fff8dc"] },
+      "board-path": { "role": "secondary", "displayName": "Blu del Percorso", "canonical": "#1f5fd6", "tonalRamp": ["#0c2652", "#123a82", "#1849ad", "#1f5fd6", "#4f82e0", "#80a4e8", "#b3c9f1", "#e1eafa"] },
+      "ed-bg": { "role": "neutral", "displayName": "Carta Calda", "canonical": "#f6f5f1", "tonalRamp": ["#23221f", "#4a4843", "#77736a", "#a7a398", "#cfcabd", "#e2dfd6", "#efede6", "#f6f5f1"] }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Titolo del puzzle in modalità gioco." },
+      "body": { "displayName": "Body", "purpose": "Tutta l'interfaccia degli strumenti." },
+      "label": { "displayName": "Label", "purpose": "Titoli di gruppo e barre delle liste, maiuscolo." },
+      "mono": { "displayName": "Mono", "purpose": "JSON e valori modificabili a mano." }
+    },
+    "shadows": [
+      { "name": "popover", "value": "0 8px 24px rgba(0, 0, 0, 0.14)", "purpose": "Menu a comparsa della libreria." },
+      { "name": "segment-active", "value": "0 1px 2px rgba(0, 0, 0, 0.12)", "purpose": "Segmento attivo del controllo segmentato." },
+      { "name": "path-glow", "value": "drop-shadow(0 0 6px rgba(31, 95, 214, 0.35))", "purpose": "Bagliore del percorso mentre si traccia." }
+    ],
+    "motion": [
+      { "name": "tool-hover", "value": "0.12s", "purpose": "Sfondo e bordo degli strumenti." },
+      { "name": "path-vanish", "value": "0.4s ease-out", "purpose": "Dissolvenza di un percorso annullato." },
+      { "name": "symbol-blink", "value": "0.4s ease-in-out x4 alternate", "purpose": "Alone dei simboli in errore." }
+    ],
+    "breakpoints": [
+      { "name": "library", "value": "760px" },
+      { "name": "editor", "value": "1000px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Pulsante",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Azione secondaria sugli strumenti.",
+      "html": "<button class=\"ds-btn\">Annulla</button>",
+      "css": ".ds-btn{font:500 14px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;background:#fff;border:1px solid #e2dfd6;padding:6px 12px;border-radius:8px;cursor:pointer}.ds-btn:hover{background:#faf8f2}.ds-btn:focus-visible{outline:2px solid #f2c230;outline-offset:2px}"
+    },
+    {
+      "name": "Pulsante primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Azione principale, una per schermata.",
+      "html": "<button class=\"ds-btn-primary\">Prova</button>",
+      "css": ".ds-btn-primary{font:500 14px 'IBM Plex Sans',system-ui,sans-serif;color:#3a2e00;background:#f2c230;border:1px solid #f2c230;padding:6px 12px;border-radius:8px;cursor:pointer}.ds-btn-primary:hover{background:#e9b81f}.ds-btn-primary:focus-visible{outline:2px solid #23221f;outline-offset:2px}"
+    },
+    {
+      "name": "Strumento",
+      "kind": "custom",
+      "refersTo": "tool",
+      "description": "Tessera dell'editor; la seconda è attiva.",
+      "html": "<div style=\"display:flex;gap:6px\"><button class=\"ds-tool\"><i></i><span>Linea</span></button><button class=\"ds-tool is-active\"><i></i><span>Ponte</span></button></div>",
+      "css": ".ds-tool{display:flex;flex-direction:column;align-items:center;gap:4px;width:72px;padding:7px 1px 6px;border:1px solid #e2dfd6;border-radius:8px;background:#fff;font:400 11px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;cursor:pointer;transition:background .12s,border-color .12s}.ds-tool i{width:30px;height:30px;border-radius:6px;background:#eef1f5}.ds-tool:hover{background:#faf8f2;border-color:#cfcabd}.ds-tool.is-active{border-color:#f2c230;background:#fff8dc;box-shadow:inset 0 0 0 1px #f2c230}.ds-tool:focus-visible{outline:2px solid #f2c230;outline-offset:2px}"
+    },
+    {
+      "name": "Scheda",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Navigazione sulla barra scura della demo.",
+      "html": "<nav class=\"ds-tabs\"><button>Raccolta</button><button class=\"is-active\">Editor</button><button>Gioca</button></nav>",
+      "css": ".ds-tabs{display:flex;gap:4px;background:#1b1d22;padding:8px}.ds-tabs button{border:0;background:transparent;color:#c9c5ba;padding:6px 14px;border-radius:7px;font:500 14px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer}.ds-tabs button:hover{color:#fff}.ds-tabs button.is-active{background:#f2c230;color:#2a2100}.ds-tabs button:focus-visible{outline:2px solid #f2c230;outline-offset:2px}"
+    },
+    {
+      "name": "Campo",
+      "kind": "input",
+      "description": "Campo di testo con focus giallo.",
+      "html": "<input class=\"ds-input\" value=\"Altrove B12\">",
+      "css": ".ds-input{font:600 14px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;width:200px;border:1px solid #e2dfd6;border-radius:7px;padding:6px 8px;background:#fff}.ds-input:focus{outline:2px solid #f2c230;outline-offset:-1px}"
+    },
+    {
+      "name": "Indicatore di contrasto",
+      "kind": "chip",
+      "description": "Pillola di stato per il contrasto dei colori.",
+      "html": "<span class=\"ds-pill ds-pill-good\">Buono</span> <span class=\"ds-pill ds-pill-low\">Basso</span> <span class=\"ds-pill ds-pill-bad\">Insufficiente</span>",
+      "css": ".ds-pill{display:inline-block;font:500 12px 'IBM Plex Sans',system-ui,sans-serif;padding:2px 8px;border-radius:10px}.ds-pill-good{background:#dcefe5;color:#1d7f5a}.ds-pill-low{background:#fbeccb;color:#7a5600}.ds-pill-bad{background:#f6dcdf;color:#b8323f}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Il Banco del Collaudatore",
+    "overview": "Due mondi che non si mescolano. Fuori dalla board c'è il banco di lavoro dello staff: grigio caldo, sobrio, con un solo accento giallo che segnala ciò che è attivo. Al centro c'è la board, il pezzo sotto collaudo: bianco clinico, linee grigio-azzurre, percorso blu aziendale. Gli strumenti si fanno da parte e lasciano la scena all'enigma.",
+    "keyCharacteristics": [
+      "Due temi separati: --ed-* (strumenti) e --ep-* (board).",
+      "Piatto e tonale: bordi sottili e variazioni di tono, ombre solo per i menu.",
+      "Un solo accento caldo (giallo) per lo stato attivo e l'azione primaria.",
+      "IBM Plex Sans per l'interfaccia, IBM Plex Mono per JSON e valori.",
+      "Movimento minimo e funzionale, con prefers-reduced-motion rispettato."
+    ],
+    "rules": [
+      { "name": "The Two Worlds Rule", "body": "Strumenti caldi, board fredda. Il giallo non entra nella board e il blu non entra negli strumenti.", "section": "colors" },
+      { "name": "The One Signal Rule", "body": "Il giallo indica uno stato attivo, mai decorazione.", "section": "colors" },
+      { "name": "The Small Caps Label Rule", "body": "I titoli di gruppo sono in maiuscolo spaziato a 11px; mai per frasi intere.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Le superfici sono piatte a riposo. L'ombra appare solo per ciò che galleggia.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do tenere il giallo per lo stato attivo, l'azione primaria e il focus.",
+      "Do usare i token --ed-* fuori dalla board e --ep-* dentro.",
+      "Do dare ai simboli bianchi un contorno #9aa6b5 sul pannello chiaro.",
+      "Do rispettare prefers-reduced-motion: i lampeggi diventano uno stato fisso.",
+      "Do usare IBM Plex Mono per JSON e valori che l'utente può modificare."
+    ],
+    "donts": [
+      "Don't costruire un'interfaccia da dashboard aziendale generica: niente card anonime in griglia, niente metriche decorative.",
+      "Don't mettere il giallo dentro la board né il blu del percorso negli strumenti.",
+      "Don't usare ombre per dare gerarchia ai pannelli a riposo.",
+      "Don't aggiungere un secondo accento caldo accanto al giallo.",
+      "Don't coprire la board con elementi di interfaccia: lo staff deve vederla intera."
+    ]
+  }
+}
