@@ -164,7 +164,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
   list('points').forEach((it, i) => {
     const at = { x: it.x as number, y: it.y as number };
     if (!inPointBounds(dims, at)) return warnings.push(`points[${i}]: fuori griglia.`);
-    if (it.type === 'start' || it.type === 'hexagon') points.push({ ...at, type: it.type });
+    if (it.type === 'start' || it.type === 'hexagon' || it.type === 'bridge') points.push({ ...at, type: it.type });
     else if (it.type === 'end') {
       const dir = DIRS.includes(it.dir as Direction) ? (it.dir as Direction) : undefined;
       if (it.dir !== undefined && !dir) warnings.push(`points[${i}]: direzione "${String(it.dir)}" ignorata.`);
@@ -240,6 +240,11 @@ export function parsePuzzle(input: string | unknown): ParseResult {
     cells: dedupe('cells', cells, (c) => `${c.x},${c.y}`),
   };
   const clean = sanitize(puzzle);
+  for (const b of puzzle.points) {
+    if (b.type === 'bridge' && !clean.points.includes(b)) {
+      warnings.push(`Ponte in ${b.x},${b.y} scartato: serve un incrocio interno con 4 lati percorribili, senza simmetria.`);
+    }
+  }
   if (!clean.points.some((p) => p.type === 'start')) warnings.push('Il puzzle non ha partenze.');
   if (!clean.points.some((p) => p.type === 'end')) warnings.push('Il puzzle non ha uscite.');
   return { puzzle: clean, warnings };

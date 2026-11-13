@@ -7,6 +7,7 @@ import {
   getPoint,
   indexPuzzle,
   isEdgeTraversable,
+  maxPasses,
   pointCells,
   pointKey,
   reflectPoint,
@@ -61,7 +62,9 @@ export function checkPathStructure(puzzle: Puzzle, paths: Path[]): string[] {
     msgs.push(`Servono ${expected} percorsi, ricevuti ${paths.length}.`);
     return msgs;
   }
-  const seen = new Set<string>();
+  // Un punto si attraversa una volta (due sui ponti), un lato mai due volte.
+  const passes = new Map<string, number>();
+  const usedEdges = new Set<string>();
   for (const path of paths) {
     if (path.length < 2) {
       msgs.push('Percorso troppo corto.');
@@ -71,14 +74,21 @@ export function checkPathStructure(puzzle: Puzzle, paths: Path[]): string[] {
     if (getPoint(idx, path[path.length - 1])?.type !== 'end') msgs.push('Il percorso non termina su un’uscita.');
     path.forEach((c, i) => {
       const k = pointKey(c.x, c.y);
-      if (seen.has(k)) msgs.push(`Il punto ${k} è attraversato più volte.`);
-      seen.add(k);
+      const n = (passes.get(k) ?? 0) + 1;
+      passes.set(k, n);
+      if (n > maxPasses(idx, c)) msgs.push(`Il punto ${k} è attraversato più volte.`);
       if (i > 0) {
         const prev = path[i - 1];
         if (Math.abs(prev.x - c.x) + Math.abs(prev.y - c.y) !== 1) {
           msgs.push(`Salto non valido fra ${pointKey(prev.x, prev.y)} e ${k}.`);
-        } else if (!isEdgeTraversable(idx, edgeBetween(prev, c))) {
-          msgs.push(`Il lato fra ${pointKey(prev.x, prev.y)} e ${k} non è percorribile.`);
+        } else {
+          const e = edgeBetween(prev, c);
+          if (!isEdgeTraversable(idx, e)) {
+            msgs.push(`Il lato fra ${pointKey(prev.x, prev.y)} e ${k} non è percorribile.`);
+          }
+          const ek = edgeRefKey(e);
+          if (usedEdges.has(ek)) msgs.push(`Il lato fra ${pointKey(prev.x, prev.y)} e ${k} è percorso più volte.`);
+          usedEdges.add(ek);
         }
       }
     });

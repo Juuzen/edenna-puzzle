@@ -132,6 +132,24 @@ function isEdgeAbsent(idx: PuzzleIndex, e: EdgeRef) {
   return !inEdgeBounds(idx.puzzle, e) || getEdge(idx, e)?.type === 'missing';
 }
 
+/**
+ * Un ponte si può mettere solo su un incrocio interno i cui quattro lati
+ * siano percorribili, e mai in un puzzle simmetrico.
+ */
+export function canPlaceBridge(p: Puzzle, at: Coord): boolean {
+  if (p.symmetry !== 'none') return false;
+  if (at.x <= 0 || at.y <= 0 || at.x >= p.width || at.y >= p.height) return false;
+  const idx = indexPuzzle(p);
+  return (Object.keys(DIRECTIONS) as Direction[]).every((d) =>
+    isEdgeTraversable(idx, edgeBetween(at, neighbor(at, d))),
+  );
+}
+
+export const countBridges = (p: Puzzle) => p.points.filter((it) => it.type === 'bridge').length;
+
+/** Quante volte il percorso può passare per un punto (2 sui ponti). */
+export const maxPasses = (idx: PuzzleIndex, c: Coord) => (getPoint(idx, c)?.type === 'bridge' ? 2 : 1);
+
 export function neighbor(c: Coord, d: Direction): Coord {
   const v = DIRECTIONS[d];
   return { x: c.x + v.x, y: c.y + v.y };
@@ -330,14 +348,16 @@ export function sanitize(p: Puzzle): Puzzle {
   out.cells = p.cells.filter((c) => inCellBounds(p, c));
   // Toglie una `dir` esplicita che non punta più verso un lato assente.
   const idx = indexPuzzle(out);
-  out.points = out.points.map((it) => {
+  const fixed = out.points.map((it) => {
     if (it.type === 'end' && it.dir && endDirection(idx, it) !== it.dir) {
       const { dir: _drop, ...rest } = it;
       return rest;
     }
     return it;
   });
-  return out;
+  // Oggetto nuovo: `out` ha già un indice in cache con i vecchi punti.
+  // I ponti non più validi (lato interrotto, bordo, simmetria) spariscono.
+  return { ...out, points: fixed.filter((it) => it.type !== 'bridge' || canPlaceBridge(out, it)) };
 }
 
 /**

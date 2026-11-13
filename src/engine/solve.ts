@@ -1,8 +1,10 @@
 import {
   edgeBetween,
+  edgeRefKey,
   getPoint,
   indexPuzzle,
   isEdgeTraversable,
+  maxPasses,
   pointKey,
   reflectPoint,
 } from './grid';
@@ -43,11 +45,29 @@ export function solve(puzzle: Puzzle, opts: SolveOptions = {}): SolveResult {
   let aborted = false;
   let steps = 0;
 
-  const visited = new Set<string>();
+  // Passaggi per punto (fino a 2 sui ponti) e lati già percorsi.
+  const passes = new Map<string, number>();
+  const usedEdges = new Set<string>();
+  const full = (c: Coord, k: string) => (passes.get(k) ?? 0) >= maxPasses(idx, c);
+  const enter = (k: string) => passes.set(k, (passes.get(k) ?? 0) + 1);
+  const leave = (k: string) => passes.set(k, passes.get(k)! - 1);
   const path: Coord[] = [];
   const mpath: Coord[] = [];
 
   const isEnd = (c: Coord) => getPoint(idx, c)?.type === 'end';
+
+  // Con un ponte attraversato due volte, l'anello fra i due passaggi si può
+  // percorrere nei due versi: stessi lati, stesso disegno finale. Le due
+  // varianti contano come una sola soluzione.
+  const seenEdgeSets = new Set<string>();
+  const isNewSolution = (paths: Path[]) => {
+    const keys: string[] = [];
+    for (const p of paths) for (let i = 1; i < p.length; i++) keys.push(edgeRefKey(edgeBetween(p[i - 1], p[i])));
+    const k = `${pointKey(paths[0][0].x, paths[0][0].y)}|${keys.sort().join(';')}`;
+    if (seenEdgeSets.has(k)) return false;
+    seenEdgeSets.add(k);
+    return true;
+  };
 
   const dfs = (cur: Coord) => {
     if (aborted) return;
@@ -58,7 +78,7 @@ export function solve(puzzle: Puzzle, opts: SolveOptions = {}): SolveResult {
     if (isEnd(cur) && (sym === 'none' || isEnd(mirror(cur)))) {
       const paths = sym === 'none' ? [[...path]] : [[...path], [...mpath]];
       checked++;
-      if (validate(puzzle, paths).valid) {
+      if (validate(puzzle, paths).valid && isNewSolution(paths)) {
         solutions.push(paths);
         if (solutions.length >= maxSolutions) {
           aborted = true;
@@ -74,30 +94,34 @@ export function solve(puzzle: Puzzle, opts: SolveOptions = {}): SolveResult {
     ]) {
       const next = { x: cur.x + dx, y: cur.y + dy };
       const nk = pointKey(next.x, next.y);
-      if (visited.has(nk)) continue;
       if (next.x < 0 || next.y < 0 || next.x > puzzle.width || next.y > puzzle.height) continue;
-      if (!isEdgeTraversable(idx, edgeBetween(cur, next))) continue;
+      if (full(next, nk)) continue;
+      const edge = edgeBetween(cur, next);
+      const ek = edgeRefKey(edge);
+      if (usedEdges.has(ek) || !isEdgeTraversable(idx, edge)) continue;
       let mk = '';
       let mnext: Coord | null = null;
       if (sym !== 'none') {
         const mcur = mpath[mpath.length - 1];
         mnext = mirror(next);
         mk = pointKey(mnext.x, mnext.y);
-        if (mk === nk || visited.has(mk)) continue;
+        if (mk === nk || full(mnext, mk)) continue;
         if (!isEdgeTraversable(idx, edgeBetween(mcur, mnext))) continue;
       }
-      visited.add(nk);
+      enter(nk);
+      usedEdges.add(ek);
       path.push(next);
       if (mnext) {
-        visited.add(mk);
+        enter(mk);
         mpath.push(mnext);
       }
       dfs(next);
       path.pop();
-      visited.delete(nk);
+      leave(nk);
+      usedEdges.delete(ek);
       if (mnext) {
         mpath.pop();
-        visited.delete(mk);
+        leave(mk);
       }
       if (aborted) return;
     }
@@ -110,17 +134,18 @@ export function solve(puzzle: Puzzle, opts: SolveOptions = {}): SolveResult {
     const sk = pointKey(s.x, s.y);
     if (doneStarts.has(sk)) continue;
     doneStarts.add(sk);
-    visited.clear();
+    passes.clear();
+    usedEdges.clear();
     path.length = 0;
     mpath.length = 0;
-    visited.add(sk);
+    enter(sk);
     path.push({ x: s.x, y: s.y });
     if (sym !== 'none') {
       const m = mirror(s);
       if (getPoint(idx, m)?.type !== 'start') continue;
       // Per simmetria (s, m) e (m, s) danno le stesse soluzioni: basta una.
       doneStarts.add(pointKey(m.x, m.y));
-      visited.add(pointKey(m.x, m.y));
+      enter(pointKey(m.x, m.y));
       mpath.push(m);
     }
     dfs(path[0]);

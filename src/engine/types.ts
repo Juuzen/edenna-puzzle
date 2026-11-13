@@ -51,7 +51,9 @@ export type PointItem =
   | { x: number; y: number; type: 'start' }
   /** `dir` è opzionale: se manca viene calcolata in automatico. */
   | { x: number; y: number; type: 'end'; dir?: Direction }
-  | { x: number; y: number; type: 'hexagon' };
+  | { x: number; y: number; type: 'hexagon' }
+  /** Ponte: incrocio interno che il percorso può attraversare due volte. */
+  | { x: number; y: number; type: 'bridge' };
 
 /** Modifiche/simboli su un lato. */
 export type EdgeItem = {
