@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import {
   type Puzzle,
   type PuzzleCollection,
@@ -125,11 +125,12 @@ export function PuzzleLibrary({
     setPuzzles(list);
     go(ci, i + 1);
   };
-  const move = (delta: number) => {
-    const j = pi + delta;
+  /** Sposta il puzzle `i` di una posizione; il puzzle attivo resta lo stesso. */
+  const moveAt = (i: number, delta: number) => {
+    const j = i + delta;
     if (j < 0 || j >= puzzles.length) return;
-    setPuzzles(moveItem(puzzles, pi, j));
-    go(ci, j);
+    setPuzzles(moveItem(puzzles, i, j));
+    go(ci, i === pi ? j : i < pi && j >= pi ? pi - 1 : i > pi && j <= pi ? pi + 1 : pi);
   };
   /** Elimina il puzzle `i` (con conferma); la selezione resta sullo stesso puzzle se possibile. */
   const removePuzzle = (i = pi) => {
@@ -159,6 +160,55 @@ export function PuzzleLibrary({
   useEffect(() => setMenuFor(null), [ci, selecting]);
   const menuAction = (fn: () => void) => () => {
     setMenuFor(null);
+    fn();
+  };
+
+  /**
+   * Tastiera nei menu ⋯: frecce, Home e Fine tra le voci attive; Esc chiude e
+   * riporta il focus sul pulsante; Tab chiude senza trattenere il focus.
+   */
+  const menuKeys = (close: () => void) => (e: KeyboardEvent<HTMLDivElement>) => {
+    const menu = e.currentTarget;
+    const items = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')];
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const focus = (i: number) => items[(i + items.length) % items.length]?.focus();
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focus(at + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focus(at < 0 ? -1 : at - 1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      focus(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      focus(-1);
+    } else if (e.key === 'Escape') {
+      menu.parentElement?.querySelector<HTMLButtonElement>('.ep-library__more-btn')?.focus();
+      close();
+    } else if (e.key === 'Tab') {
+      close();
+    }
+  };
+
+  // --- menu "⋯" della raccolta
+  const [colMenu, setColMenu] = useState(false);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!colMenu) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !colMenuRef.current?.contains(e.target as Node)) setColMenu(false);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [colMenu]);
+  const colAction = (fn: () => void) => () => {
+    setColMenu(false);
     fn();
   };
 
@@ -245,20 +295,41 @@ export function PuzzleLibrary({
             ))}
           </select>
         )}
-      </div>
-      <div className="ep-library__actions ep-library__actions--top">
-        <button type="button" onClick={addCollection} title="Nuova raccolta">
-          + Raccolta
-        </button>
-        <button type="button" onClick={() => col && setRenaming(col.name)} disabled={!col}>
-          Rinomina
-        </button>
-        <button type="button" onClick={duplicateCollection} disabled={!col}>
-          Duplica
-        </button>
-        <button type="button" onClick={deleteCollection} disabled={collections.length <= 1} className="is-danger">
-          Elimina
-        </button>
+        <div className="ep-library__collmenu" ref={colMenuRef}>
+          <button
+            type="button"
+            className={`ep-library__more-btn${colMenu ? ' is-open' : ''}`}
+            aria-label={`Azioni sulla raccolta «${col?.name ?? ''}»`}
+            aria-haspopup="menu"
+            aria-expanded={colMenu}
+            onClick={() => setColMenu((o) => !o)}
+          >
+            ⋯
+          </button>
+          {colMenu && (
+            <div role="menu" aria-label="Azioni sulla raccolta" className="ep-library__menu" onKeyDown={menuKeys(() => setColMenu(false))}>
+              <button type="button" role="menuitem" autoFocus onClick={colAction(addCollection)}>
+                Nuova raccolta
+              </button>
+              <button type="button" role="menuitem" disabled={!col} onClick={colAction(() => col && setRenaming(col.name))}>
+                Rinomina
+              </button>
+              <button type="button" role="menuitem" disabled={!col} onClick={colAction(duplicateCollection)}>
+                Duplica raccolta
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="is-danger"
+                disabled={collections.length <= 1}
+                title={collections.length <= 1 ? 'Deve restare almeno una raccolta' : undefined}
+                onClick={colAction(deleteCollection)}
+              >
+                Elimina raccolta
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ---------------------------------------------- lista */}
@@ -308,7 +379,7 @@ export function PuzzleLibrary({
             </select>
           )}
           <button type="button" onClick={removeSelected} disabled={!selected.size} className="is-danger">
-            Elimina
+            Elimina ({selected.size})
           </button>
         </div>
       )}
@@ -332,7 +403,7 @@ export function PuzzleLibrary({
               </span>
             </button>
             {!selecting && (
-              <div className="ep-library__more" ref={menuFor === i ? menuRef : undefined}>
+              <div className={`ep-library__more${menuFor === i ? ' is-open' : ''}`} ref={menuFor === i ? menuRef : undefined}>
                 <button
                   type="button"
                   className={`ep-library__more-btn${menuFor === i ? ' is-open' : ''}`}
@@ -346,10 +417,18 @@ export function PuzzleLibrary({
                 {menuFor === i && (
                   <div
                     role="menu"
+                    aria-label={`Azioni per «${p.title || `Puzzle ${i + 1}`}»`}
                     className={`ep-library__menu${i >= 2 && i >= puzzles.length - 2 ? ' ep-library__menu--up' : ''}`}
+                    onKeyDown={menuKeys(() => setMenuFor(null))}
                   >
                     <button type="button" role="menuitem" autoFocus onClick={menuAction(() => duplicate(i))}>
                       Duplica
+                    </button>
+                    <button type="button" role="menuitem" disabled={i <= 0} onClick={menuAction(() => moveAt(i, -1))}>
+                      Sposta su
+                    </button>
+                    <button type="button" role="menuitem" disabled={i >= puzzles.length - 1} onClick={menuAction(() => moveAt(i, 1))}>
+                      Sposta giù
                     </button>
                     <button
                       type="button"
@@ -367,43 +446,19 @@ export function PuzzleLibrary({
             )}
           </li>
         ))}
-        {!selecting && col && (
-          <li>
-            <button type="button" className="ep-library__add" onClick={addPuzzle}>
-              <span className="ep-library__add-icon" aria-hidden>
-                +
-              </span>
-              <span className="ep-library__title">Nuovo puzzle</span>
-            </button>
-          </li>
-        )}
       </ol>
 
-      {/* ---------------------------------------------- azioni */}
-      {!selecting && (
-        <div className="ep-library__actions">
-          <button type="button" onClick={addPuzzle} disabled={!col}>
-            + Nuovo puzzle
-          </button>
-          <button type="button" onClick={() => duplicate()} disabled={!puzzles.length}>
-            Duplica
-          </button>
-          <button type="button" onClick={() => move(-1)} disabled={pi <= 0} title="Sposta su">
-            ↑
-          </button>
-          <button type="button" onClick={() => move(1)} disabled={pi >= puzzles.length - 1} title="Sposta giù">
-            ↓
-          </button>
-          <button type="button" onClick={() => removePuzzle()} disabled={puzzles.length <= 1} className="is-danger">
-            Elimina
-          </button>
-        </div>
-      )}
+      {/* ---------------------------------------------- file */}
       <div className="ep-library__actions">
-        <button type="button" onClick={() => exportPuzzles(puzzles)} disabled={!col}>
+        <button
+          type="button"
+          onClick={() => exportPuzzles(puzzles)}
+          disabled={!col}
+          title={col ? `Scarica «${col.name}» (${puzzles.length} puzzle) come file JSON` : undefined}
+        >
           Esporta raccolta
         </button>
-        <button type="button" onClick={() => fileRef.current?.click()}>
+        <button type="button" onClick={() => fileRef.current?.click()} title="Importa un puzzle o una raccolta da un file JSON">
           Importa…
         </button>
       </div>

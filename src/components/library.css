@@ -5,16 +5,6 @@
 
 .ep-library,
 .ep-import {
-  --ed-bg: #f6f5f1;
-  --ed-side: #efede6;
-  --ed-surface: #ffffff;
-  --ed-border: #e2dfd6;
-  --ed-text: #23221f;
-  --ed-muted: #77736a;
-  --ed-accent: #f2c230;
-  --ed-accent-ink: #3a2e00;
-  --ed-danger: #b8323f;
-  --ed-ok: #1d7f5a;
 
   color: var(--ed-text);
   font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -40,8 +30,31 @@
 }
 
 .ep-library__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 12px 10px 6px;
 }
+.ep-library__head .ep-library__name { flex: 1; min-width: 0; width: auto; }
+.ep-library__collmenu { position: relative; flex: none; }
+.ep-library__collmenu .ep-library__more-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--ed-border);
+  border-radius: 7px;
+  background: var(--ed-surface);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ed-muted);
+  cursor: pointer;
+}
+.ep-library__collmenu .ep-library__more-btn:hover,
+.ep-library__collmenu .ep-library__more-btn.is-open {
+  color: var(--ed-text);
+  background: #f1efe8;
+}
+.ep-library__collmenu .ep-library__menu { z-index: 3; }
 .ep-library__name {
   width: 100%;
   box-sizing: border-box;
@@ -52,7 +65,7 @@
   font-weight: 600 !important;
 }
 .ep-library__name:focus {
-  outline: 2px solid var(--ed-accent);
+  outline: 2px solid var(--ed-focus);
   outline-offset: -1px;
 }
 
@@ -113,7 +126,7 @@
 }
 .ep-library__list button.is-active {
   background: var(--ed-surface);
-  border-color: var(--ed-accent);
+  border-color: #b3ae9f;
 }
 .ep-library__item {
   position: relative;
@@ -128,6 +141,10 @@
   right: 6px;
   transform: translateY(-50%);
   z-index: 2;
+}
+/* Ogni ".more" è un contesto di sovrapposizione: quello col menu aperto deve stare sopra i vicini. */
+.ep-library__more.is-open {
+  z-index: 5;
 }
 .ep-library__list .ep-library__more-btn {
   width: 28px;
@@ -168,37 +185,22 @@
   top: auto;
   bottom: calc(100% + 4px);
 }
-.ep-library__list .ep-library__menu button {
+.ep-library .ep-library__menu button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 13px;
 }
-.ep-library__list .ep-library__menu button:hover:not(:disabled) {
+.ep-library .ep-library__menu button:hover:not(:disabled) {
   background: #f1efe8;
 }
-.ep-library__list .ep-library__menu button:disabled {
+.ep-library .ep-library__menu button:disabled {
   opacity: 0.4;
   cursor: default;
-}
-.ep-library__list button.ep-library__add {
-  border: 1px dashed #cfcabd;
-  color: var(--ed-muted);
-  margin-top: 4px;
-}
-.ep-library__list button.ep-library__add:hover {
-  border-color: var(--ed-accent);
-  color: var(--ed-text);
-  background: var(--ed-surface);
-}
-.ep-library__add-icon {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  font-size: 22px;
-  border-radius: 8px;
-  background: #e6e3da;
 }
 .ep-library__list button.is-selected {
   background: #fbf3d6;
@@ -245,10 +247,6 @@
   gap: 4px;
   padding: 8px 10px;
   border-top: 1px solid var(--ed-border);
-}
-.ep-library__actions--top {
-  border-top: 0;
-  padding-top: 0;
 }
 .ep-library__actions button,
 .ep-library__actions select {

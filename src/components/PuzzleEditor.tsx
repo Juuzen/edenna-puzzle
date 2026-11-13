@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import {
   COLORS,
   MAX_SIZE,
@@ -45,8 +45,12 @@ import {
   bridgeProblem,
   emptyShape,
   hitTest,
+  initialLattice,
   isAlreadyThere,
+  itemLossNotice,
   keepId,
+  latticeTarget,
+  moveLattice,
   nextEndDirection,
   pickEndDirection,
   shapeFromRows,
@@ -129,6 +133,14 @@ const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
   },
   { title: 'Altro', tools: [{ kind: 'erase', label: 'Gomma', hint: 'Cancella qualsiasi elemento' }] },
 ];
+
+const TOOL_LIST = TOOL_GROUPS.flatMap((g) => g.tools);
+/** Tasti 1–9 e 0 per i primi dieci strumenti, nell'ordine della palette. */
+const TOOL_KEYS = '1234567890';
+const toolKey = (kind: ToolKind): string | undefined => {
+  const i = TOOL_LIST.findIndex((t) => t.kind === kind);
+  return i >= 0 && i < TOOL_KEYS.length ? TOOL_KEYS[i] : undefined;
+};
 
 const usesColor = (k: ToolKind) => k === 'square' || k === 'star' || k === 'eliminator' || k === 'triangle';
 
@@ -499,9 +511,12 @@ export function PuzzleEditor({
   const puzzle = history.present;
   const [tool, setTool] = useState<ToolState>(DEFAULT_TOOL);
   const [hover, setHover] = useState<Target | null>(null);
+  /** Posizione del cursore da tastiera sulla board (reticolo, vedi `latticeTarget`). */
+  const [kb, setKb] = useState<{ x: number; y: number } | null>(null);
   const [notice, setNotice] = useState<{ text: string; tone: 'info' | 'error' | 'ok' } | null>(null);
   const [mode, setMode] = useState<'edit' | 'test'>('edit');
-  const [panel, setPanel] = useState<'props' | 'json'>('props');
+  const [side, setSide] = useState<'build' | 'look'>('build');
+  const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonDraft, setJsonDraft] = useState<string | null>(null);
   const [jsonKey, setJsonKey] = useState(0);
   const [solveState, setSolveState] = useState<{ running: boolean; result?: SolveResult; show: boolean }>({
@@ -511,7 +526,6 @@ export function PuzzleEditor({
   const [testResult, setTestResult] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const paint = useRef<{ mode: 'add' | 'remove'; done: Set<string>; base: Puzzle } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const lastEmitted = useRef<Puzzle | null>(null);
 
   // Valore controllato cambiato dall'esterno (altro puzzle o modifica non
@@ -556,8 +570,8 @@ export function PuzzleEditor({
   const commit = (p: Puzzle, coalesce = false) => history.push(keepId(p, puzzle.id), coalesce);
   /** Ridimensionamento o simmetria: avvisa se qualche ponte è sparito. */
   const commitGrid = (p: Puzzle) => {
-    const lost = bridgeLossNotice(puzzle, p);
-    if (lost) flash(lost);
+    const lost = itemLossNotice(puzzle, p) ?? bridgeLossNotice(puzzle, p);
+    if (lost) flash(lost, 'info');
     commit(p);
   };
 
@@ -615,8 +629,20 @@ export function PuzzleEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tool, hover, puzzle]);
 
+  /** Applica lo strumento a un bersaglio: lo aggiunge o, se c'è già, lo toglie. */
+  const place = (t: Target) => {
+    const m = isAlreadyThere(puzzle, tool, t) ? 'remove' : 'add';
+    const r = applyTool(puzzle, tool, t, m);
+    if (r.notice) flash(r.notice, 'error');
+    else if (r.removedBridges) flash(bridgeLossNotice(puzzle, r.puzzle)!);
+    commit(r.puzzle);
+    return m;
+  };
+
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
+    // Un secondo dito mentre si sta già disegnando: il primo gesto continua.
+    if (paint.current) return;
     const t = targetAt(e);
     if (!t) return;
     svgRef.current?.setPointerCapture(e.pointerId);
@@ -627,6 +653,60 @@ export function PuzzleEditor({
     else if (r.removedBridges) flash(bridgeLossNotice(puzzle, r.puzzle)!);
     commit(r.puzzle);
   };
+
+  // --- tastiera sulla board: frecce per muoversi, Invio o Spazio per applicare lo strumento
+  const kbTarget = (pos: { x: number; y: number } | null): Target | null => {
+    if (!pos) return null;
+    const t = latticeTarget(puzzle, pos.x, pos.y, toolTargets(tool.kind));
+    if (t?.kind === 'point' && tool.kind === 'end') {
+      const dir = autoEndDirection(indexPuzzle(puzzle), t.at);
+      return dir ? { ...t, dir } : t;
+    }
+    return t;
+  };
+  const kbMoveTo = (pos: { x: number; y: number } | null) => {
+    if (!pos) return;
+    setKb(pos);
+    setHover(kbTarget(pos));
+  };
+  const onBoardKey = (e: ReactKeyboardEvent<SVGSVGElement>) => {
+    if (mode !== 'edit' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const kinds = toolTargets(tool.kind);
+    const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    if (arrows[e.key]) {
+      e.preventDefault();
+      const [dx, dy] = arrows[e.key];
+      kbMoveTo(kb ? (moveLattice(puzzle, kinds, kb, dx, dy) ?? kb) : initialLattice(puzzle, kinds));
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const pos = kb ?? initialLattice(puzzle, kinds);
+      const t = kbTarget(pos);
+      if (!pos || !t) return;
+      setKb(pos);
+      place(t);
+      setHover(t);
+    } else if (e.key === 'Escape' && kb) {
+      setKb(null);
+      setHover(null);
+    }
+  };
+  // Cambiando strumento la posizione precedente potrebbe non essere più valida.
+  useEffect(() => {
+    setKb(null);
+  }, [tool.kind]);
+  // Descrizione per chi non vede la board: dove si trova il cursore e cosa farebbe Invio.
+  const kbText = useMemo(() => {
+    const t = kb && mode === 'edit' ? kbTarget(kb) : null;
+    if (!t) return '';
+    const where =
+      t.kind === 'cell'
+        ? `cella, colonna ${t.at.x + 1}, riga ${t.at.y + 1}`
+        : t.kind === 'point'
+          ? `incrocio, colonna ${t.at.x + 1}, riga ${t.at.y + 1}`
+          : `lato ${t.at.dir === 'h' ? 'orizzontale' : 'verticale'}, colonna ${t.at.x + 1}, riga ${t.at.y + 1}`;
+    return `${where}. ${isAlreadyThere(puzzle, tool, t) ? 'Elemento già presente: Invio lo toglie.' : 'Invio applica lo strumento.'}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kb, puzzle, tool, mode]);
 
   const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
     const t = targetAt(e);
@@ -648,6 +728,11 @@ export function PuzzleEditor({
   const endPaint = () => {
     paint.current = null;
   };
+  // Un gesto interrotto (finestra che perde il focus, cattura persa) non lascia il disegno "attaccato".
+  useEffect(() => {
+    window.addEventListener('blur', endPaint);
+    return () => window.removeEventListener('blur', endPaint);
+  }, []);
 
   // --- anteprima dello strumento sotto il puntatore
   const overlay = useMemo(() => {
@@ -728,12 +813,6 @@ export function PuzzleEditor({
     }
   };
 
-  const onFile = async (f: File | undefined) => {
-    if (!f) return;
-    loadText(await f.text());
-    if (fileRef.current) fileRef.current.value = '';
-  };
-
   // --- solver
   const runSolver = () => {
     setSolveState({ running: true, show: false });
@@ -762,6 +841,38 @@ export function PuzzleEditor({
     }
     return out;
   }, [puzzle]);
+
+  // --- scorciatoie: 1-9 e 0 strumenti, M modifica, P prova, S cerca soluzioni
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      const toolIdx = TOOL_KEYS.indexOf(e.key);
+      if (e.key.length === 1 && toolIdx >= 0 && TOOL_LIST[toolIdx]) {
+        e.preventDefault();
+        const kind = TOOL_LIST[toolIdx].kind;
+        if (kind === 'bridge' && puzzle.symmetry !== 'none') {
+          flash('Il ponte non è disponibile con la simmetria attiva.', 'error');
+          return;
+        }
+        setTool((t) => ({ ...t, kind }));
+        setMode('edit');
+      } else if (k === 'm') {
+        setMode('edit');
+      } else if (k === 'p') {
+        setMode('test');
+        setTestResult(null);
+      } else if (k === 's' && !solveState.running && issues.length === 0) {
+        e.preventDefault();
+        runSolver();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puzzle, solveState.running, issues]);
 
   const json = useMemo(() => serializePuzzle(puzzle), [puzzle]);
   const shownSolution: Path[] | null = solveState.show && solveState.result?.solutions[0] ? solveState.result.solutions[0] : null;
@@ -800,9 +911,65 @@ export function PuzzleEditor({
   const sizeOptions = Array.from({ length: MAX_SIZE }, (_, i) => i + 1);
 
   return (
-    <div ref={rootRef} className={`ep-editor${className ? ` ${className}` : ''}`}>
+    <div ref={rootRef} className={`ep-editor-host${className ? ` ${className}` : ''}`}>
+    <div className={`ep-editor${jsonOpen ? ' ep-editor--json' : ''}`}>
       {/* ------------------------------------------------ strumenti */}
-      <aside className="ep-editor__tools" aria-label="Strumenti">
+      <aside className="ep-editor__tools" aria-label="Strumenti e aspetto">
+        <div
+          className="ep-seg ep-seg--full"
+          role="tablist"
+          aria-label="Pannello"
+          onKeyDown={(e) => {
+            const other = side === 'build' ? 'look' : 'build';
+            const next =
+              e.key === 'ArrowRight' || e.key === 'ArrowLeft' ? other : e.key === 'Home' ? 'build' : e.key === 'End' ? 'look' : null;
+            if (!next) return;
+            e.preventDefault();
+            setSide(next);
+            document.getElementById(`ep-tab-${next}`)?.focus();
+          }}
+        >
+          <button
+            type="button"
+            role="tab"
+            id="ep-tab-build"
+            aria-selected={side === 'build'}
+            aria-controls="ep-panel-side"
+            tabIndex={side === 'build' ? 0 : -1}
+            className={side === 'build' ? 'is-active' : ''}
+            onClick={() => setSide('build')}
+          >
+            Costruisci
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="ep-tab-look"
+            aria-selected={side === 'look'}
+            aria-controls="ep-panel-side"
+            tabIndex={side === 'look' ? 0 : -1}
+            className={side === 'look' ? 'is-active' : ''}
+            onClick={() => setSide('look')}
+          >
+            Aspetto
+          </button>
+        </div>
+        <div id="ep-panel-side" role="tabpanel" aria-labelledby={`ep-tab-${side}`} className="ep-tabpanel">
+
+        {side === 'look' ? (
+            <section className="ep-group">
+              <h3 className="ep-group__title">Sfondo</h3>
+              <BackgroundControls
+                value={puzzle.background}
+                palette={puzzle.palette}
+                themeColors={themeColors}
+                onChange={setBackground}
+                onPaletteChange={setPalette}
+                onSettle={() => (bgDragging.current = false)}
+              />
+            </section>
+        ) : (
+          <>
         {TOOL_GROUPS.map((g) => (
           <section key={g.title} className="ep-group">
             <h3 className="ep-group__title">{g.title}</h3>
@@ -817,10 +984,12 @@ export function PuzzleEditor({
                     setMode('edit');
                   }}
                   disabled={t.kind === 'bridge' && puzzle.symmetry !== 'none'}
+                  aria-describedby={t.kind === 'bridge' && puzzle.symmetry !== 'none' ? 'ep-bridge-note' : undefined}
+                  aria-keyshortcuts={toolKey(t.kind)}
                   title={
                     t.kind === 'bridge' && puzzle.symmetry !== 'none'
-                      ? `${t.label} — Non disponibile nei puzzle simmetrici`
-                      : `${t.label} — ${t.hint}`
+                      ? `${t.label} — Non disponibile con la simmetria attiva`
+                      : `${t.label}${toolKey(t.kind) ? ` (${toolKey(t.kind)})` : ''} — ${t.hint}`
                   }
                   aria-pressed={tool.kind === t.kind}
                 >
@@ -829,6 +998,11 @@ export function PuzzleEditor({
                 </button>
               ))}
             </div>
+            {g.title === 'Punti' && puzzle.symmetry !== 'none' && (
+              <p id="ep-bridge-note" className="ep-note">
+                Il ponte non è disponibile con la simmetria attiva. Per usarlo, imposta «Nessuna» in Griglia.
+              </p>
+            )}
           </section>
         ))}
 
@@ -873,7 +1047,7 @@ export function PuzzleEditor({
         {tool.kind === 'polyomino' && (
           <section className="ep-group">
             <h3 className="ep-group__title">Forma</h3>
-            <div className="ep-shape" role="grid" aria-label="Forma del poliomino">
+            <div className="ep-shape" role="group" aria-label="Forma del poliomino">
               {tool.shape.map((row, y) =>
                 row.map((on, x) => (
                   <button
@@ -899,7 +1073,7 @@ export function PuzzleEditor({
                   </svg>
                 </button>
               ))}
-              <button type="button" title="Svuota" onClick={() => setTool({ ...tool, shape: emptyShape() })}>
+              <button type="button" title="Cancella la forma" aria-label="Cancella la forma" onClick={() => setTool({ ...tool, shape: emptyShape() })}>
                 ∅
               </button>
             </div>
@@ -914,101 +1088,6 @@ export function PuzzleEditor({
             <p className="ep-note">Massimo {SHAPE_SIZE}×{SHAPE_SIZE}. I poliomini contano per le stelle come giallo (blu se negativi).</p>
           </section>
         )}
-      </aside>
-
-      {/* ------------------------------------------------ area centrale */}
-      <main className="ep-editor__stage">
-        <div className="ep-toolbar">
-          <div className="ep-seg" role="tablist">
-            <button type="button" className={mode === 'edit' ? 'is-active' : ''} onClick={() => setMode('edit')}>
-              Modifica
-            </button>
-            <button
-              type="button"
-              className={mode === 'test' ? 'is-active' : ''}
-              onClick={() => {
-                setMode('test');
-                setTestResult(null);
-              }}
-            >
-              Prova
-            </button>
-          </div>
-          <div className="ep-toolbar__spacer" />
-          <button type="button" className="ep-btn" onClick={history.undo} disabled={!history.canUndo} title="Annulla (Ctrl+Z)">
-            ↶ Annulla
-          </button>
-          <button type="button" className="ep-btn" onClick={history.redo} disabled={!history.canRedo} title="Ripeti (Ctrl+Shift+Z)">
-            ↷ Ripeti
-          </button>
-        </div>
-
-        <div className="ep-stage">
-          {mode === 'edit' ? (
-            <PuzzleBoard
-              ref={svgRef}
-              className="ep-editor-board"
-              puzzle={puzzle}
-              paths={shownSolution}
-              status={shownSolution ? 'success' : 'idle'}
-              eliminated={shownEliminated}
-              overlay={overlay}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={endPaint}
-              onPointerCancel={endPaint}
-              onPointerLeave={() => setHover(null)}
-              style={{ touchAction: 'none', cursor: 'crosshair' }}
-            />
-          ) : (
-            <PuzzlePlayer
-              key={json}
-              puzzle={puzzle}
-              lockOnSolve={false}
-              onSolve={(r: ValidationResult) =>
-                setTestResult(r.eliminated.length ? `Risolto (con ${r.eliminated.length} simboli eliminati).` : 'Risolto!')
-              }
-              onFail={(r) => setTestResult(r.messages[0] ?? `Non valido: ${r.errors.length} simboli non soddisfatti.`)}
-              onStart={() => setTestResult(null)}
-            />
-          )}
-        </div>
-        <div className="ep-status" aria-live="polite">
-          {mode === 'test'
-            ? (testResult ?? 'Clic sulla partenza, poi muovi il puntatore e clicca sull’uscita. Frecce e Invio da tastiera.')
-            : notice
-              ? <span className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</span>
-              : (TOOL_GROUPS.flatMap((g) => g.tools).find((t) => t.kind === tool.kind)?.hint ?? '')}
-        </div>
-      </main>
-
-      {/* ------------------------------------------------ pannello laterale */}
-      <aside className="ep-editor__side">
-        <div className="ep-seg ep-seg--full" role="tablist">
-          <button type="button" className={panel === 'props' ? 'is-active' : ''} onClick={() => setPanel('props')}>
-            Puzzle
-          </button>
-          <button
-            type="button"
-            className={panel === 'json' ? 'is-active' : ''}
-            onClick={() => {
-              setPanel('json');
-              setJsonDraft(null);
-            }}
-          >
-            JSON
-          </button>
-        </div>
-
-        {panel === 'props' ? (
-          <>
-            <section className="ep-group">
-              <label className="ep-field">
-                <span>Titolo</span>
-                <input value={puzzle.title ?? ''} onChange={(e) => setMeta({ title: e.target.value })} />
-              </label>
-            </section>
-
             <section className="ep-group">
               <h3 className="ep-group__title">Griglia</h3>
               <div className="ep-row">
@@ -1039,78 +1118,172 @@ export function PuzzleEditor({
                   ))}
                 </select>
               </label>
-              <p className="ep-note">Riducendo la griglia si perdono gli elementi che non ci stanno più (Ctrl+Z per tornare indietro).</p>
-            </section>
-
-            <section className="ep-group">
-              <h3 className="ep-group__title">Sfondo</h3>
-              <BackgroundControls
-                value={puzzle.background}
-                palette={puzzle.palette}
-                themeColors={themeColors}
-                onChange={setBackground}
-                onPaletteChange={setPalette}
-                onSettle={() => (bgDragging.current = false)}
-              />
-            </section>
-
-            <section className="ep-group">
-              <h3 className="ep-group__title">Verifica</h3>
-              {issues.map((i) => (
-                <p key={i} className="ep-notice ep-notice--error">
-                  {i}
-                </p>
-              ))}
-              <div className="ep-row">
-                <button type="button" className="ep-btn" onClick={runSolver} disabled={solveState.running || issues.length > 0}>
-                  {solveState.running ? 'Calcolo…' : 'Cerca soluzioni'}
-                </button>
-                {solveState.result && solveState.result.solutions.length > 0 && (
-                  <button type="button" className="ep-btn" onClick={() => setSolveState((s) => ({ ...s, show: !s.show }))}>
-                    {solveState.show ? 'Nascondi' : 'Mostra'}
-                  </button>
-                )}
-              </div>
-              {solveState.result && (
-                <p className={`ep-notice ep-notice--${solveState.result.solutions.length === 1 && solveState.result.exhaustive ? 'ok' : 'info'}`}>
-                  {solverText(solveState.result)}{' '}
-                  <span className="ep-muted">
-                    ({solveState.result.checked} percorsi, {solveState.result.elapsedMs} ms)
-                  </span>
-                </p>
-              )}
-            </section>
-
-            <section className="ep-group">
-              <h3 className="ep-group__title">File</h3>
-              <div className="ep-row ep-row--wrap">
-                <button type="button" className="ep-btn ep-btn--primary" onClick={() => downloadText(`${slugify(puzzle.title)}.json`, json)}>
-                  Esporta JSON
-                </button>
-                <button type="button" className="ep-btn" onClick={() => fileRef.current?.click()}>
-                  Importa…
-                </button>
-                <button
-                  type="button"
-                  className="ep-btn ep-btn--danger"
-                  onClick={() => commit(createPuzzle(puzzle.width, puzzle.height))}
-                >
-                  Svuota
-                </button>
-              </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".json,application/json,.txt"
-                hidden
-                onChange={(e) => onFile(e.target.files?.[0])}
-              />
-              <p className="ep-note">
-                Si importano file JSON, con un solo puzzle o con una raccolta.
-              </p>
+              <p className="ep-note">Se riduci la griglia, gli elementi fuori dai nuovi bordi vengono tolti. Ctrl+Z li ripristina.</p>
             </section>
           </>
-        ) : (
+        )}
+        </div>
+      </aside>
+
+      {/* ------------------------------------------------ area centrale */}
+      <main className="ep-editor__stage">
+        <div className="ep-toolbar">
+          <label className="ep-toolbar__title">
+            <span className="ep-sr">Titolo del puzzle</span>
+            <input
+              value={puzzle.title ?? ''}
+              placeholder="Titolo del puzzle"
+              onChange={(e) => setMeta({ title: e.target.value })}
+            />
+          </label>
+          <div className="ep-seg" role="group" aria-label="Modalità">
+            <button type="button" className={mode === 'edit' ? 'is-active' : ''} aria-pressed={mode === 'edit'} aria-keyshortcuts="M" title="Modifica (M)" onClick={() => setMode('edit')}>
+              Modifica
+            </button>
+            <button
+              type="button"
+              className={mode === 'test' ? 'is-active' : ''}
+              aria-pressed={mode === 'test'}
+              aria-keyshortcuts="P"
+              title="Prova (P)"
+              onClick={() => {
+                setMode('test');
+                setTestResult(null);
+              }}
+            >
+              Prova
+            </button>
+          </div>
+          <div className="ep-toolbar__spacer" />
+          <div className="ep-toolbar__group">
+            <button
+              type="button"
+              className="ep-btn"
+              onClick={runSolver}
+              disabled={solveState.running || issues.length > 0}
+              aria-keyshortcuts="S"
+              title={issues.length > 0 ? `Prima correggi il puzzle: ${issues[0]}` : 'Cerca tutti i percorsi che risolvono il puzzle (S)'}
+            >
+              {solveState.running ? 'Calcolo…' : 'Cerca soluzioni'}
+            </button>
+            {mode === 'edit' && solveState.result && solveState.result.solutions.length > 0 && (
+              <button type="button" className="ep-btn" onClick={() => setSolveState((s) => ({ ...s, show: !s.show }))}>
+                {solveState.show ? 'Nascondi soluzione' : 'Mostra soluzione'}
+              </button>
+            )}
+          </div>
+          <div className="ep-toolbar__group">
+            <button type="button" className="ep-btn" onClick={() => downloadText(`${slugify(puzzle.title)}.json`, json)} title="Scarica solo questo puzzle come file JSON">
+              Esporta puzzle
+            </button>
+            <button
+              type="button"
+              className="ep-btn ep-btn--danger"
+              onClick={() => {
+                commit(createPuzzle(puzzle.width, puzzle.height));
+                flash('Puzzle azzerato. Ctrl+Z per annullare.');
+              }}
+              title="Toglie tutti gli elementi dal puzzle (si annulla con Ctrl+Z)"
+              aria-label="Azzera puzzle"
+            >
+              Azzera
+            </button>
+          </div>
+          <div className="ep-toolbar__group">
+            <button type="button" className="ep-btn" onClick={history.undo} disabled={!history.canUndo} title="Annulla (Ctrl+Z)" aria-label="Annulla">
+              ↶
+            </button>
+            <button type="button" className="ep-btn" onClick={history.redo} disabled={!history.canRedo} title="Ripeti (Ctrl+Shift+Z)" aria-label="Ripeti">
+              ↷
+            </button>
+            <button
+              type="button"
+              className={`ep-btn ep-btn--toggle${jsonOpen ? ' is-active' : ''}`}
+              aria-expanded={jsonOpen}
+              aria-controls="ep-json-drawer"
+              aria-label="JSON del puzzle"
+              title="Mostra o nascondi il JSON del puzzle"
+              onClick={() => {
+                setJsonOpen((o) => !o);
+                setJsonDraft(null);
+              }}
+            >
+              {'{ }'}
+            </button>
+          </div>
+        </div>
+
+        <div className="ep-stage">
+          {mode === 'edit' ? (
+            <PuzzleBoard
+              ref={svgRef}
+              className="ep-editor-board"
+              puzzle={puzzle}
+              paths={shownSolution}
+              status={shownSolution ? 'success' : 'idle'}
+              eliminated={shownEliminated}
+              overlay={overlay}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={endPaint}
+              onPointerCancel={endPaint}
+              onLostPointerCapture={endPaint}
+              onPointerLeave={() => setHover(kbTarget(kb))}
+              tabIndex={0}
+              role="application"
+              label="Board del puzzle. Frecce per muoverti, Invio o Spazio per applicare lo strumento, Esc per uscire."
+              onKeyDown={onBoardKey}
+              onBlur={() => {
+                setKb(null);
+                setHover(null);
+              }}
+              style={{ touchAction: 'none', cursor: 'crosshair' }}
+            />
+          ) : (
+            <PuzzlePlayer
+              key={json}
+              puzzle={puzzle}
+              lockOnSolve={false}
+              onSolve={(r: ValidationResult) =>
+                setTestResult(r.eliminated.length ? `Risolto (con ${r.eliminated.length} simboli eliminati).` : 'Risolto!')
+              }
+              onFail={(r) => setTestResult(r.messages[0] ?? `Non valido: ${r.errors.length} simboli non soddisfatti.`)}
+              onStart={() => setTestResult(null)}
+            />
+          )}
+        </div>
+        <div className="ep-sr" aria-live="polite">
+          {kbText}
+        </div>
+        <div className="ep-status" aria-live="polite">
+          <div className="ep-status__verify">
+            {issues.map((i) => (
+              <p key={i} className="ep-notice ep-notice--error">
+                {i}
+              </p>
+            ))}
+            {solveState.result && (
+              <p className={`ep-notice ep-notice--${solveState.result.solutions.length === 1 && solveState.result.exhaustive ? 'ok' : 'info'}`}>
+                {solverText(solveState.result)}{' '}
+                <span className="ep-muted">
+                  ({solveState.result.checked} percorsi, {solveState.result.elapsedMs} ms)
+                </span>
+              </p>
+            )}
+          </div>
+          <div className="ep-status__hint">
+            {mode === 'test'
+              ? (testResult ?? 'Clic sulla partenza, poi muovi il puntatore e clicca sull’uscita. Frecce e Invio da tastiera.')
+              : notice
+                ? <span className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</span>
+                : (TOOL_GROUPS.flatMap((g) => g.tools).find((t) => t.kind === tool.kind)?.hint ?? '')}
+          </div>
+        </div>
+      </main>
+
+      {/* ------------------------------------------------ cassetto JSON */}
+      {jsonOpen && (
+        <aside id="ep-json-drawer" className="ep-editor__side" aria-label="JSON del puzzle">
           <section className="ep-group ep-group--grow">
             <textarea
               key={jsonKey}
@@ -1146,11 +1319,12 @@ export function PuzzleEditor({
                 Ripristina
               </button>
             </div>
-            <p className="ep-note">Modifica il JSON a mano oppure incolla quello di un altro puzzle, poi «Applica».</p>
+            <p className="ep-note">Modifica il JSON o incolla quello di un altro puzzle, poi premi «Applica»: sostituisce il puzzle aperto (si annulla con Ctrl+Z).</p>
             {notice && <p className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</p>}
           </section>
-        )}
-      </aside>
+        </aside>
+      )}
+    </div>
     </div>
   );
 }

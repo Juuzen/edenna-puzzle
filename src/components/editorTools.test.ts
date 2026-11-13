@@ -14,11 +14,17 @@ import {
   applyTool,
   bridgeLossNotice,
   bridgeProblem,
+  countItems,
+  initialLattice,
   isAlreadyThere,
+  itemLossNotice,
+  latticeTarget,
+  moveLattice,
   keepId,
   nextEndDirection,
   pickEndDirection,
   shouldReset,
+  toolTargets,
   type Target,
 } from './editorTools';
 import { isTraceComplete, startTrace, stepTrace } from './tracing';
@@ -176,5 +182,51 @@ describe('strumento Ponte', () => {
     expect(bridgeLossNotice(p, p)).toBeNull();
     const hex = applyTool(p, { ...DEFAULT_TOOL, kind: 'hexagon' }, { kind: 'edge', at: { x: 1, y: 1, dir: 'h' } }, 'add');
     expect(hex.removedBridges).toBeUndefined();
+  });
+});
+
+describe('navigazione da tastiera', () => {
+  const p = createPuzzle(2, 2);
+
+  it('mappa il reticolo su incroci, celle e lati', () => {
+    const all = toolTargets('erase');
+    expect(latticeTarget(p, 0, 0, all)).toEqual({ kind: 'point', at: { x: 0, y: 0 } });
+    expect(latticeTarget(p, 1, 1, all)).toEqual({ kind: 'cell', at: { x: 0, y: 0 } });
+    expect(latticeTarget(p, 1, 0, all)).toEqual({ kind: 'edge', at: { x: 0, y: 0, dir: 'h' } });
+    expect(latticeTarget(p, 0, 1, all)).toEqual({ kind: 'edge', at: { x: 0, y: 0, dir: 'v' } });
+    expect(latticeTarget(p, 5, 0, all)).toBeNull();
+    expect(latticeTarget(p, -1, 0, all)).toBeNull();
+  });
+
+  it('rispetta i tipi ammessi dallo strumento', () => {
+    expect(latticeTarget(p, 1, 1, toolTargets('start'))).toBeNull();
+    expect(latticeTarget(p, 2, 2, toolTargets('start'))).not.toBeNull();
+    expect(latticeTarget(p, 1, 0, toolTargets('square'))).toBeNull();
+  });
+
+  it('salta le posizioni non utili muovendosi', () => {
+    expect(moveLattice(p, toolTargets('square'), { x: 1, y: 1 }, 1, 0)).toEqual({ x: 3, y: 1 });
+    expect(moveLattice(p, toolTargets('start'), { x: 0, y: 0 }, 1, 0)).toEqual({ x: 2, y: 0 });
+    expect(moveLattice(p, toolTargets('erase'), { x: 0, y: 0 }, 1, 0)).toEqual({ x: 1, y: 0 });
+  });
+
+  it('non esce dalla board', () => {
+    expect(moveLattice(p, toolTargets('square'), { x: 3, y: 3 }, 1, 0)).toBeNull();
+    expect(moveLattice(p, toolTargets('square'), { x: 1, y: 1 }, -1, 0)).toBeNull();
+  });
+
+  it('parte dal centro', () => {
+    expect(initialLattice(p, toolTargets('start'))).toEqual({ x: 2, y: 2 });
+    expect(initialLattice(p, toolTargets('square'))).not.toBeNull();
+  });
+});
+
+describe('avviso sugli elementi tolti', () => {
+  it('conta gli elementi e segnala la perdita', () => {
+    const big = { ...createPuzzle(3, 3), cells: [{ x: 2, y: 2, type: 'square' as const, color: 'black' as const }] };
+    const small = { ...createPuzzle(2, 2), cells: [] };
+    expect(countItems(big)).toBe(1);
+    expect(itemLossNotice(big, small)).toMatch(/ha tolto 1 elemento/);
+    expect(itemLossNotice(small, big)).toBeNull();
   });
 });

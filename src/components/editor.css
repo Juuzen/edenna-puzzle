@@ -4,20 +4,17 @@
  * la board dentro resta nel tema in-game.
  */
 
+.ep-editor-host {
+  height: 100%;
+  min-height: 0;
+  container: ep-editor / inline-size;
+}
+
 .ep-editor {
-  --ed-bg: #f6f5f1;
-  --ed-surface: #ffffff;
-  --ed-border: #e2dfd6;
-  --ed-text: #23221f;
-  --ed-muted: #77736a;
-  --ed-accent: #f2c230;
-  --ed-accent-ink: #3a2e00;
-  --ed-danger: #b8323f;
-  --ed-ok: #1d7f5a;
   --ed-radius: 10px;
 
   display: grid;
-  grid-template-columns: 270px minmax(0, 1fr) 296px;
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 0;
   height: 100%;
   min-height: 0;
@@ -26,6 +23,10 @@
   font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.4;
+}
+
+.ep-editor--json {
+  grid-template-columns: 280px minmax(0, 1fr) 296px;
 }
 
 .ep-editor button,
@@ -45,6 +46,7 @@
   flex-direction: column;
   gap: 18px;
 }
+.ep-tabpanel { display: flex; flex-direction: column; gap: 18px; }
 .ep-editor__tools { border-right: 1px solid var(--ed-border); }
 .ep-editor__side { border-left: 1px solid var(--ed-border); }
 
@@ -77,18 +79,40 @@
 
 .ep-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 8px 12px;
   margin-bottom: 10px;
 }
 .ep-toolbar__spacer { flex: 1; }
+.ep-toolbar__group { display: flex; gap: 6px; }
+.ep-toolbar__title { flex: 1 1 100%; }
+.ep-toolbar__title input {
+  width: 100%;
+  border: 1px solid var(--ed-border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: var(--ed-surface);
+  font-weight: 600;
+}
+.ep-toolbar__title input:focus { outline: 2px solid var(--ed-focus); outline-offset: -1px; }
+.ep-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 .ep-status {
-  min-height: 2.6em;
   padding-top: 8px;
   color: var(--ed-muted);
   text-align: center;
 }
+/* Riga della verifica riservata: l'esito della ricerca non fa saltare la board. */
+.ep-status__verify { min-height: 1.4em; }
+.ep-status__hint { min-height: 1.4em; }
 
 /* --------------------------------------------------------------- gruppi */
 
@@ -150,7 +174,7 @@
 
 .ep-swatches {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(9, minmax(0, 32px));
   gap: 4px;
 }
 .ep-swatch {
@@ -170,7 +194,7 @@
   gap: 2px;
 }
 .ep-seg--full { display: flex; }
-.ep-seg--full > button { flex: 1; }
+.ep-seg.ep-seg--full > button { flex: 1; padding-inline: 8px; white-space: nowrap; }
 .ep-seg button {
   border: 0;
   background: transparent;
@@ -236,7 +260,7 @@
 .ep-field select:focus,
 .ep-field textarea:focus,
 .ep-json:focus {
-  outline: 2px solid var(--ed-accent);
+  outline: 2px solid var(--ed-focus);
   outline-offset: -1px;
 }
 
@@ -257,6 +281,8 @@
 .ep-btn--primary { background: var(--ed-accent); border-color: var(--ed-accent); color: var(--ed-accent-ink); }
 .ep-btn--primary:hover:not(:disabled) { background: #e9b81f; }
 .ep-btn--danger { color: var(--ed-danger); }
+.ep-btn--toggle { font-family: 'IBM Plex Mono', ui-monospace, monospace; padding-inline: 10px; }
+.ep-btn--toggle.is-active { border-color: var(--ed-text); box-shadow: inset 0 0 0 1px var(--ed-text); }
 
 .ep-json {
   flex: 1;
@@ -391,13 +417,46 @@
 
 /* ------------------------------------------------------------ responsive */
 
-@media (max-width: 1000px) {
-  .ep-editor {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(360px, 60vh) auto;
+/*
+ * L'editor si adatta allo spazio che ha, non alla finestra: la demo gli toglie
+ * la colonna della raccolta, un'app ospite può metterlo in un riquadro.
+ * Sotto ~1000px la board non avrebbe più di ~480px, quindi il pannello del
+ * puzzle scende sotto; sotto ~640px scendono anche gli strumenti.
+ */
+@container ep-editor (max-width: 999px) {
+  .ep-editor,
+  .ep-editor--json {
+    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-rows: clamp(520px, 80vh, 760px) auto;
     height: auto;
   }
-  .ep-editor__tools { border-right: 0; border-bottom: 1px solid var(--ed-border); }
-  .ep-editor__side { border-left: 0; border-top: 1px solid var(--ed-border); }
+  .ep-editor__tools { border-bottom: 0; }
+  .ep-editor__side {
+    grid-column: 1 / -1;
+    border-left: 0;
+    border-top: 1px solid var(--ed-border);
+    overflow: visible;
+  }
+  .ep-editor__side > .ep-group--grow { min-height: 240px; }
+}
+
+@container ep-editor (max-width: 639px) {
+  .ep-editor,
+  .ep-editor--json {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(360px, 60vh) auto;
+  }
+  .ep-editor__tools { border-right: 0; border-bottom: 1px solid var(--ed-border); overflow: visible; }
   .ep-tools { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
 }
+
+/* Puntatore impreciso (touch): bersagli di almeno ~40px, senza allargare la vista a mouse. */
+@media (pointer: coarse) {
+  .ep-swatches { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; }
+  .ep-shape { width: 200px; gap: 4px; }
+  .ep-presets button { width: 44px; height: 44px; }
+  .ep-seg button { padding-block: 10px; }
+  .ep-btn { padding-block: 10px; }
+  .ep-check { min-height: 40px; }
+}
+

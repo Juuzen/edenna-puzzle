@@ -30,6 +30,27 @@
   --ep-white-outline: #9aa6b5;
 }
 
+/*
+ * Strumenti "fuori gioco" (editor, raccolta, importazione): grigio caldo con un
+ * solo accento giallo. Definiti qui una volta sola; la board usa --ep-*.
+ */
+.ep-editor,
+.ep-library,
+.ep-import {
+  --ed-bg: #f6f5f1;
+  --ed-side: #efede6;
+  --ed-surface: #ffffff;
+  --ed-border: #e2dfd6;
+  --ed-text: #23221f;
+  --ed-muted: #67635a;
+  /* Il giallo non basta come indicatore di focus (1.5:1): si usa l'inchiostro. */
+  --ed-focus: #23221f;
+  --ed-accent: #f2c230;
+  --ed-accent-ink: #3a2e00;
+  --ed-danger: #b8323f;
+  --ed-ok: #1d7f5a;
+}
+
 /* ------------------------------------------------------------------ board */
 
 .ep-player,

@@ -153,6 +153,63 @@ export function toolTargets(kind: ToolKind): TargetKind[] {
   }
 }
 
+/**
+ * Navigazione da tastiera: la board è un reticolo di (2w+1)×(2h+1) posizioni.
+ * Coordinate pari/pari = incroci, dispari/dispari = celle, le altre = lati.
+ */
+export function latticeTarget(p: Puzzle, lx: number, ly: number, kinds: TargetKind[]): Target | null {
+  if (!Number.isInteger(lx) || !Number.isInteger(ly) || lx < 0 || ly < 0 || lx > 2 * p.width || ly > 2 * p.height) return null;
+  const evenX = lx % 2 === 0;
+  const evenY = ly % 2 === 0;
+  const t: Target =
+    evenX && evenY
+      ? { kind: 'point', at: { x: lx / 2, y: ly / 2 } }
+      : !evenX && !evenY
+        ? { kind: 'cell', at: { x: (lx - 1) / 2, y: (ly - 1) / 2 } }
+        : !evenX
+          ? { kind: 'edge', at: { x: (lx - 1) / 2, y: ly / 2, dir: 'h' } }
+          : { kind: 'edge', at: { x: lx / 2, y: (ly - 1) / 2, dir: 'v' } };
+  return kinds.includes(t.kind) ? t : null;
+}
+
+/** Prossima posizione utile nella direzione data (salta quelle che lo strumento non può usare). */
+export function moveLattice(p: Puzzle, kinds: TargetKind[], from: Coord, dx: number, dy: number): Coord | null {
+  let x = from.x + dx;
+  let y = from.y + dy;
+  while (x >= 0 && y >= 0 && x <= 2 * p.width && y <= 2 * p.height) {
+    if (latticeTarget(p, x, y, kinds)) return { x, y };
+    x += dx;
+    y += dy;
+  }
+  return null;
+}
+
+/** Prima posizione utile, partendo dal centro della board. */
+export function initialLattice(p: Puzzle, kinds: TargetKind[]): Coord | null {
+  const cx = p.width;
+  const cy = p.height;
+  for (let r = 0; r <= Math.max(2 * p.width, 2 * p.height); r++) {
+    for (let y = cy - r; y <= cy + r; y++) {
+      for (let x = cx - r; x <= cx + r; x++) {
+        if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) === r && latticeTarget(p, x, y, kinds)) return { x, y };
+      }
+    }
+  }
+  return null;
+}
+
+/** Quanti elementi (celle, lati, punti diversi da partenza e uscita) ha `p`. */
+export function countItems(p: Puzzle): number {
+  return p.cells.length + p.edges.length + p.points.filter((it) => it.type !== 'start' && it.type !== 'end').length;
+}
+
+/** Avviso se un ridimensionamento o un cambio di simmetria ha tolto elementi. */
+export function itemLossNotice(before: Puzzle, after: Puzzle): string | null {
+  const lost = countItems(before) - countItems(after);
+  if (lost <= 0) return null;
+  return `La modifica ha tolto ${lost} ${lost === 1 ? 'elemento' : 'elementi'}. Ctrl+Z ${lost === 1 ? 'lo ripristina' : 'li ripristina'}.`;
+}
+
 /** Trova cosa c'è sotto il puntatore, tra i tipi ammessi dallo strumento. */
 export function hitTest(p: Puzzle, g: Coord, kinds: TargetKind[]): Target | null {
   const pt = { x: Math.round(g.x), y: Math.round(g.y) };

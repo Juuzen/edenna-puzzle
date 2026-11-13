@@ -79,6 +79,8 @@ export function App() {
   /** Id dei puzzle risolti in questa sessione. */
   const [solved, setSolved] = useState<Set<string>>(new Set());
   const [playKey, setPlayKey] = useState(0);
+  /** Raccolta visibile o nascosta: nascosta lascia più spazio alla board. */
+  const [libraryOpen, setLibraryOpen] = useState(true);
   /** Raccolta incollata nell'editor (scheda JSON) in attesa di conferma. */
   const [pasted, setPasted] = useState<ImportSource | null>(null);
 
@@ -122,6 +124,15 @@ export function App() {
           <span className="brand-name">EDENNA</span>
           <span className="brand-sub">Laboratorio Puzzle</span>
         </div>
+        <button
+          type="button"
+          className="app-library-toggle"
+          aria-pressed={libraryOpen}
+          aria-controls="app-library"
+          onClick={() => setLibraryOpen((o) => !o)}
+        >
+          Raccolta
+        </button>
         <nav className="app-tabs">
           <button className={view === 'edit' ? 'is-active' : ''} onClick={() => setView('edit')}>
             Editor
@@ -138,14 +149,18 @@ export function App() {
         </nav>
       </header>
 
-      <div className="app-body">
-        <PuzzleLibrary
-          collections={collections}
-          onChange={changeCollections}
-          active={{ collection: ci, puzzle: pi }}
-          onActiveChange={setActive}
-          isSolved={isSolved}
-        />
+      <div className={`app-body${libraryOpen ? '' : ' app-body--wide'}`}>
+        {libraryOpen && (
+          <div id="app-library" className="app-library">
+            <PuzzleLibrary
+              collections={collections}
+              onChange={changeCollections}
+              active={{ collection: ci, puzzle: pi }}
+              onActiveChange={setActive}
+              isSolved={isSolved}
+            />
+          </div>
+        )}
 
         <main className="app-main">
           {view === 'edit' ? (

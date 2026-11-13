@@ -36,7 +36,7 @@
       "refersTo": "button",
       "description": "Azione secondaria sugli strumenti.",
       "html": "<button class=\"ds-btn\">Annulla</button>",
-      "css": ".ds-btn{font:500 14px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;background:#fff;border:1px solid #e2dfd6;padding:6px 12px;border-radius:8px;cursor:pointer}.ds-btn:hover{background:#faf8f2}.ds-btn:focus-visible{outline:2px solid #f2c230;outline-offset:2px}"
+      "css": ".ds-btn{font:500 14px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;background:#fff;border:1px solid #e2dfd6;padding:6px 12px;border-radius:8px;cursor:pointer}.ds-btn:hover{background:#faf8f2}.ds-btn:focus-visible{outline:2px solid #23221f;outline-offset:2px}"
     },
     {
       "name": "Pulsante primario",
@@ -52,22 +52,22 @@
       "refersTo": "tool",
       "description": "Tessera dell'editor; la seconda è attiva.",
       "html": "<div style=\"display:flex;gap:6px\"><button class=\"ds-tool\"><i></i><span>Linea</span></button><button class=\"ds-tool is-active\"><i></i><span>Ponte</span></button></div>",
-      "css": ".ds-tool{display:flex;flex-direction:column;align-items:center;gap:4px;width:72px;padding:7px 1px 6px;border:1px solid #e2dfd6;border-radius:8px;background:#fff;font:400 11px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;cursor:pointer;transition:background .12s,border-color .12s}.ds-tool i{width:30px;height:30px;border-radius:6px;background:#eef1f5}.ds-tool:hover{background:#faf8f2;border-color:#cfcabd}.ds-tool.is-active{border-color:#f2c230;background:#fff8dc;box-shadow:inset 0 0 0 1px #f2c230}.ds-tool:focus-visible{outline:2px solid #f2c230;outline-offset:2px}"
+      "css": ".ds-tool{display:flex;flex-direction:column;align-items:center;gap:4px;width:72px;padding:7px 1px 6px;border:1px solid #e2dfd6;border-radius:8px;background:#fff;font:400 11px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;cursor:pointer;transition:background .12s,border-color .12s}.ds-tool i{width:30px;height:30px;border-radius:6px;background:#eef1f5}.ds-tool:hover{background:#faf8f2;border-color:#cfcabd}.ds-tool.is-active{border-color:#f2c230;background:#fff8dc;box-shadow:inset 0 0 0 1px #f2c230}.ds-tool:focus-visible{outline:2px solid #23221f;outline-offset:2px}"
     },
     {
       "name": "Scheda",
       "kind": "nav",
       "refersTo": "tab-active",
-      "description": "Navigazione sulla barra scura della demo.",
+      "description": "Navigazione sulla barra scura della demo: scheda attiva su fondo più chiaro con barra gialla sottile.",
       "html": "<nav class=\"ds-tabs\"><button>Raccolta</button><button class=\"is-active\">Editor</button><button>Gioca</button></nav>",
-      "css": ".ds-tabs{display:flex;gap:4px;background:#1b1d22;padding:8px}.ds-tabs button{border:0;background:transparent;color:#c9c5ba;padding:6px 14px;border-radius:7px;font:500 14px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer}.ds-tabs button:hover{color:#fff}.ds-tabs button.is-active{background:#f2c230;color:#2a2100}.ds-tabs button:focus-visible{outline:2px solid #f2c230;outline-offset:2px}"
+      "css": ".ds-tabs{display:flex;gap:4px;background:#1b1d22;padding:8px}.ds-tabs button{border:0;background:transparent;color:#c9c5ba;padding:6px 14px;border-radius:7px;font:500 14px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer}.ds-tabs button:hover{color:#fff}.ds-tabs button.is-active{background:#2a2d34;color:#fff;box-shadow:inset 0 -2px 0 #f2c230}.ds-tabs button:focus-visible{outline:2px solid #f2c230;outline-offset:2px}"
     },
     {
       "name": "Campo",
       "kind": "input",
       "description": "Campo di testo con focus giallo.",
       "html": "<input class=\"ds-input\" value=\"Altrove B12\">",
-      "css": ".ds-input{font:600 14px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;width:200px;border:1px solid #e2dfd6;border-radius:7px;padding:6px 8px;background:#fff}.ds-input:focus{outline:2px solid #f2c230;outline-offset:-1px}"
+      "css": ".ds-input{font:600 14px 'IBM Plex Sans',system-ui,sans-serif;color:#23221f;width:200px;border:1px solid #e2dfd6;border-radius:7px;padding:6px 8px;background:#fff}.ds-input:focus{outline:2px solid #23221f;outline-offset:-1px}"
     },
     {
       "name": "Indicatore di contrasto",
@@ -89,12 +89,12 @@
     ],
     "rules": [
       { "name": "The Two Worlds Rule", "body": "Strumenti caldi, board fredda. Il giallo non entra nella board e il blu non entra negli strumenti.", "section": "colors" },
-      { "name": "The One Signal Rule", "body": "Il giallo indica uno stato attivo, mai decorazione.", "section": "colors" },
+      { "name": "The One Signal Rule", "body": "Il giallo indica una sola cosa per contesto: lo strumento attivo nell'area di lavoro, la scheda corrente come barra sottile nell'intestazione.", "section": "colors" },
       { "name": "The Small Caps Label Rule", "body": "I titoli di gruppo sono in maiuscolo spaziato a 11px; mai per frasi intere.", "section": "typography" },
       { "name": "The Flat-By-Default Rule", "body": "Le superfici sono piatte a riposo. L'ombra appare solo per ciò che galleggia.", "section": "elevation" }
     ],
     "dos": [
-      "Do tenere il giallo per lo stato attivo, l'azione primaria e il focus.",
+      "Do tenere il giallo per lo strumento attivo e l'azione primaria; per il focus usa l'inchiostro.",
       "Do usare i token --ed-* fuori dalla board e --ep-* dentro.",
       "Do dare ai simboli bianchi un contorno #9aa6b5 sul pannello chiaro.",
       "Do rispettare prefers-reduced-motion: i lampeggi diventano uno stato fisso.",

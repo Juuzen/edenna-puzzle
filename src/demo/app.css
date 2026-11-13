@@ -71,14 +71,45 @@ button {
   color: #fff;
 }
 .app-tabs button.is-active {
-  background: #f2c230;
-  color: #2a2100;
+  background: #2a2d34;
+  color: #fff;
+  box-shadow: inset 0 -2px 0 #f2c230;
 }
 .app-body {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: 252px minmax(0, 1fr);
+}
+
+.app-body--wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+.app-library {
+  min-height: 0;
+  min-width: 0;
+}
+.app-library-toggle {
+  border: 1px solid #3a3d45;
+  background: transparent;
+  color: #c9c5ba;
+  padding: 5px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.app-library-toggle:hover {
+  color: #fff;
+  border-color: #5a5e68;
+}
+.app-library-toggle[aria-pressed='true'] {
+  color: #fff;
+  border-color: #8a8e98;
+}
+.app-library-toggle:focus-visible,
+.app-tabs button:focus-visible {
+  outline: 2px solid #f2c230;
+  outline-offset: 2px;
 }
 
 .app-main {
@@ -165,5 +196,18 @@ button {
   }
   .brand-sub {
     display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-header {
+    gap: 12px;
+    padding: 0 12px;
+  }
+  .brand-name {
+    display: none;
+  }
+  .app-tabs {
+    margin-left: 0;
   }
 }
