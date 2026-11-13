@@ -290,3 +290,33 @@ export function headPosition(s: TraceState): Coord {
   const d = DIRECTIONS[s.dir];
   return { x: v.x + d.x * s.t, y: v.y + d.y * s.t };
 }
+
+/**
+ * Tratti da ridisegnare sopra il resto del percorso, uno per ogni ponte
+ * attraversato per la seconda volta: da metà del lato d'arrivo, per il
+ * ponte, fino a metà del lato d'uscita (o fino a `tail`, la testa o lo
+ * sbocco, se il percorso non è ancora andato oltre). Le occorrenze si
+ * contano solo in `path`: la coda può coincidere con l'ultimo punto.
+ */
+export function bridgeOverpasses(idx: PuzzleIndex, path: Coord[], tail: Coord | null): Coord[][] {
+  const seen = new Set<string>();
+  const out: Coord[][] = [];
+  const toward = (a: Coord, b: Coord) => {
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    const k = len > 0.5 ? 0.5 / len : 1;
+    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+  };
+  path.forEach((c, i) => {
+    if (getPoint(idx, c)?.type !== 'bridge') return;
+    const k = pointKey(c.x, c.y);
+    if (!seen.has(k)) {
+      seen.add(k);
+      return;
+    }
+    const pts = [toward(c, path[i - 1]), c];
+    const next = path[i + 1] ?? tail;
+    if (next && (next.x !== c.x || next.y !== c.y)) pts.push(toward(c, next));
+    out.push(pts);
+  });
+  return out;
+}

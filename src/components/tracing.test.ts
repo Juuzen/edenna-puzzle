@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPuzzle, indexPuzzle, setPoint, setSymmetry, type Coord, type Direction } from '../engine';
-import { CAPTURE_RADIUS, distanceToGrid, headPosition, moveTrace, startTrace, stepTrace, type TraceState } from './tracing';
+import { CAPTURE_RADIUS, bridgeOverpasses, distanceToGrid, headPosition, moveTrace, startTrace, stepTrace, type TraceState } from './tracing';
 
 /** Simula il puntatore lungo una serie di punti, a piccoli passi. */
 function drive(idx: ReturnType<typeof indexPuzzle>, start: Coord, waypoints: Coord[], step = 0.02) {
@@ -172,5 +172,18 @@ describe('ponte', () => {
     // Dal ponte: sinistra (lato del primo passaggio) e destra non si percorrono.
     expect(keys(stepTrace(idx, s, 'left'))).toBe(keys(s));
     expect(keys(stepTrace(idx, s, 'right'))).toBe(keys(s));
+  });
+});
+
+describe('sovrapposizione sul ponte', () => {
+  const idx = indexPuzzle(setPoint(createPuzzle(3, 3), { x: 1, y: 1 }, { type: 'bridge' }));
+  const path = [[0, 3], [0, 2], [0, 1], [1, 1], [2, 1], [2, 2], [1, 2], [1, 1]].map(([x, y]) => ({ x, y }));
+
+  it('solo il secondo passaggio, fino alla testa', () => {
+    expect(bridgeOverpasses(idx, path.slice(0, 4), { x: 1, y: 1 })).toEqual([]);
+    // Testa ferma sul ponte: solo la metà d'arrivo.
+    expect(bridgeOverpasses(idx, path, { x: 1, y: 1 })).toEqual([[{ x: 1, y: 1.5 }, { x: 1, y: 1 }]]);
+    expect(bridgeOverpasses(idx, path, { x: 1, y: 0.8 })).toEqual([[{ x: 1, y: 1.5 }, { x: 1, y: 1 }, { x: 1, y: 0.8 }]]);
+    expect(bridgeOverpasses(idx, [...path, { x: 1, y: 0 }], null)).toEqual([[{ x: 1, y: 1.5 }, { x: 1, y: 1 }, { x: 1, y: 0.5 }]]);
   });
 });

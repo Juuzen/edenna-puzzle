@@ -7,6 +7,11 @@ export const U = 100;
 export const LINE = 20;
 export const START_R = 25;
 export const MARGIN = 60;
+/** Mirino del ponte: mezzo lato del quadrato e lunghezza dei bracci delle staffe. */
+export const BRIDGE_HALF = 30;
+export const BRIDGE_ARM = 12;
+/** Bordo (color pannello) attorno al secondo passaggio su un ponte. */
+export const OVERPASS_BORDER = 6;
 
 /** Le tinte vengono da variabili CSS, così il tema le può cambiare. */
 export const colorVar = (c: Color) => `var(--ep-c-${c})`;
@@ -125,6 +130,24 @@ export function Hexagon({ r = 9 }: { r?: number }) {
       className="ep-hexagon"
       points={`${-r},0 ${-s},${-h} ${s},${-h} ${r},0 ${s},${h} ${-s},${h}`}
     />
+  );
+}
+
+/** Mirino del ponte: quattro staffe a "L" agli angoli, centrato nell'origine. */
+export function Bridge() {
+  const h = BRIDGE_HALF;
+  const a = BRIDGE_ARM;
+  return (
+    <g className="ep-bridge">
+      {[
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([sx, sy]) => (
+        <polyline key={`${sx}${sy}`} points={`${sx * (h - a)},${sy * h} ${sx * h},${sy * h} ${sx * h},${sy * (h - a)}`} />
+      ))}
+    </g>
   );
 }
 

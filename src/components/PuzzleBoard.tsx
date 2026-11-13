@@ -12,8 +12,8 @@ import {
   reflectPoint,
   symbolRefKey,
 } from '../engine';
-import { CellSymbol, Hexagon, LINE, MARGIN, START_R, U, maxPolyominoSize } from './Symbols';
-import { EXIT_LENGTH, type TraceState, headPosition, mirrorTrace } from './tracing';
+import { Bridge, CellSymbol, Hexagon, LINE, MARGIN, OVERPASS_BORDER, START_R, U, maxPolyominoSize } from './Symbols';
+import { EXIT_LENGTH, type TraceState, bridgeOverpasses, headPosition, mirrorTrace } from './tracing';
 
 export type BoardStatus = 'idle' | 'tracing' | 'success' | 'failure' | 'cancelled';
 
@@ -111,17 +111,19 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
     }
   }
 
-  // --- percorsi
-  const traces: { pts: Coord[] }[] = [];
+  // --- percorsi (con i tratti che passano sopra un ponte la seconda volta)
+  const traces: { pts: Coord[]; over: Coord[][] }[] = [];
+  const addTrace = (path: Coord[], tail: Coord | null) =>
+    traces.push({ pts: tail ? [...path, tail] : path, over: bridgeOverpasses(idx, path, tail) });
   if (trace) {
     const all = [trace, mirrorTrace(idx, trace)].filter(Boolean) as TraceState[];
-    for (const t of all) traces.push({ pts: [...t.path, headPosition(t)] });
+    for (const t of all) addTrace(t.path, headPosition(t));
   } else if (paths) {
     for (const p of paths) {
       const last = p[p.length - 1];
       const d = last ? endDirection(idx, last) : null;
       const exit = d ? { x: last.x + DIRECTIONS[d].x * EXIT_LENGTH, y: last.y + DIRECTIONS[d].y * EXIT_LENGTH } : null;
-      traces.push({ pts: exit ? [...p, exit] : p });
+      addTrace(p, exit);
     }
   }
 
@@ -194,6 +196,18 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
             <g key={i} className={i === 1 ? 'ep-path ep-path--mirror' : 'ep-path'}>
               <circle cx={t.pts[0].x * U} cy={t.pts[0].y * U} r={START_R} stroke="none" />
               <polyline points={t.pts.map(toSvg).join(' ')} />
+              {t.over.map((o, j) => (
+                <g key={j} strokeLinecap="butt">
+                  {/* Bordo del colore del pannello: si vede che una linea passa sull'altra. */}
+                  <polyline
+                    className="ep-path__under"
+                    points={o.map(toSvg).join(' ')}
+                    strokeWidth={LINE + 2 * OVERPASS_BORDER}
+                    style={{ stroke: panelFill?.fill ?? 'var(--ep-panel)' }}
+                  />
+                  <polyline points={o.map(toSvg).join(' ')} />
+                </g>
+              ))}
             </g>
           ) : null,
         )}
@@ -224,6 +238,15 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
               </g>
             );
           })}
+      </g>
+      <g className="ep-bridges">
+        {puzzle.points
+          .filter((p) => p.type === 'bridge')
+          .map((p) => (
+            <g key={`b${p.x},${p.y}`} transform={`translate(${p.x * U},${p.y * U})`}>
+              <Bridge />
+            </g>
+          ))}
       </g>
       {cursor && (
         <g className={`ep-cursors${pointerIdle ? ' ep-cursors--idle' : ''}`} pointerEvents="none">

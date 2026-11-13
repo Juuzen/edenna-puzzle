@@ -15,6 +15,8 @@
   --ep-success-glow: rgba(15, 155, 142, 0.45);
   --ep-error: #d4384a;
   --ep-hexagon: #2b3442;
+  /* Spessore delle staffe del ponte (unità SVG, cella = 100). */
+  --ep-bridge: 5;
   --ep-c-black: #1c222b;
   --ep-c-white: #ffffff;
   --ep-c-cyan: #12b5c9;
@@ -62,6 +64,12 @@
 }
 .ep-hexagon {
   fill: var(--ep-hexagon);
+}
+.ep-bridge {
+  fill: none;
+  stroke: var(--ep-hexagon);
+  stroke-width: var(--ep-bridge);
+  stroke-linecap: square;
 }
 
 /* I simboli bianchi su pannello chiaro: contorno sottile. */
