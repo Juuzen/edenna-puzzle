@@ -6,6 +6,8 @@ import {
   type EdgeRef,
   type Puzzle,
   DIRECTIONS,
+  canPlaceBridge,
+  countBridges,
   endDirection,
   getCell,
   getEdge,
@@ -25,6 +27,7 @@ export type ToolKind =
   | 'start'
   | 'end'
   | 'hexagon'
+  | 'bridge'
   | 'gap'
   | 'missing'
   | 'square'
@@ -136,6 +139,7 @@ export function toolTargets(kind: ToolKind): TargetKind[] {
   switch (kind) {
     case 'start':
     case 'end':
+    case 'bridge':
       return ['point'];
     case 'hexagon':
       return ['point', 'edge'];
@@ -238,6 +242,22 @@ export interface ApplyResult {
   puzzle: Puzzle;
   /** Messaggio per l'utente quando l'azione non è possibile. */
   notice?: string;
+  /** Ponti spariti come effetto collaterale (es. lato interrotto accanto). */
+  removedBridges?: number;
+}
+
+/** Perché lo strumento Ponte non si può usare in `at`, o null se si può. */
+export function bridgeProblem(p: Puzzle, at: Coord): string | null {
+  if (canPlaceBridge(p, at)) return null;
+  if (p.symmetry !== 'none') return 'Ponte non disponibile nei puzzle simmetrici.';
+  return 'Il ponte va su un incrocio interno con 4 lati percorribili.';
+}
+
+/** Avviso se passando da `before` ad `after` sono spariti dei ponti. */
+export function bridgeLossNotice(before: Puzzle, after: Puzzle): string | null {
+  const n = countBridges(before) - countBridges(after);
+  if (n <= 0) return null;
+  return n === 1 ? 'Rimosso 1 ponte non più valido.' : `Rimossi ${n} ponti non più validi.`;
 }
 
 /**
@@ -263,12 +283,20 @@ export function applyTool(p: Puzzle, tool: ToolState, t: Target, mode: 'add' | '
       const explicit = dir !== valid[0] || p.symmetry !== 'none';
       return { puzzle: setPoint(p, t.at, explicit ? { type: 'end', dir } : { type: 'end' }) };
     }
-    if (tool.kind === 'start' || tool.kind === 'hexagon') return { puzzle: setPoint(p, t.at, { type: tool.kind }) };
+    if (tool.kind === 'bridge') {
+      const problem = bridgeProblem(p, t.at);
+      if (problem) return { puzzle: p, notice: problem };
+    }
+    if (tool.kind === 'start' || tool.kind === 'hexagon' || tool.kind === 'bridge') {
+      return { puzzle: setPoint(p, t.at, { type: tool.kind }) };
+    }
     return { puzzle: p };
   }
   if (t.kind === 'edge') {
     if (tool.kind === 'gap' || tool.kind === 'missing' || tool.kind === 'hexagon') {
-      return { puzzle: setEdge(p, t.at, tool.kind) };
+      const next = setEdge(p, t.at, tool.kind);
+      const removed = countBridges(p) - countBridges(next);
+      return removed > 0 ? { puzzle: next, removedBridges: removed } : { puzzle: next };
     }
     return { puzzle: p };
   }

@@ -128,6 +128,7 @@
   transition: background 0.12s, border-color 0.12s;
 }
 .ep-tool:hover { background: #faf8f2; border-color: #cfcabd; }
+.ep-tool:disabled { opacity: 0.4; cursor: not-allowed; background: var(--ed-surface); border-color: var(--ed-border); }
 .ep-tool.is-active {
   border-color: var(--ed-accent);
   background: #fff8dc;

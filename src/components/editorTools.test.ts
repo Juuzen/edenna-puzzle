@@ -12,6 +12,8 @@ import {
 import {
   DEFAULT_TOOL,
   applyTool,
+  bridgeLossNotice,
+  bridgeProblem,
   isAlreadyThere,
   keepId,
   nextEndDirection,
@@ -140,5 +142,39 @@ describe('sincronizzazione editor ↔ raccolta', () => {
     expect(keepId(imported, 'p1').id).toBe('p1');
     expect('id' in keepId(imported, undefined)).toBe(false);
     expect(keepId(A, 'p1')).toBe(A);
+  });
+});
+
+describe('strumento Ponte', () => {
+  const BRIDGE_TOOL = { ...DEFAULT_TOOL, kind: 'bridge' as const };
+  const at = (x: number, y: number): Target => ({ kind: 'point', at: { x, y } });
+
+  it('si piazza solo dove è consentito', () => {
+    const p = createPuzzle(3, 3);
+    const ok = applyTool(p, BRIDGE_TOOL, at(1, 1), 'add');
+    expect(ok.notice).toBeUndefined();
+    expect(ok.puzzle.points).toContainEqual({ x: 1, y: 1, type: 'bridge' });
+    expect(isAlreadyThere(ok.puzzle, BRIDGE_TOOL, at(1, 1))).toBe(true);
+
+    const edge = applyTool(p, BRIDGE_TOOL, at(0, 1), 'add');
+    expect(edge.puzzle).toBe(p);
+    expect(edge.notice).toMatch(/incrocio interno/);
+    expect(bridgeProblem(p, { x: 0, y: 1 })).toMatch(/incrocio interno/);
+
+    const sym = setSymmetry(p, 'rotational');
+    const r = applyTool(sym, BRIDGE_TOOL, at(1, 1), 'add');
+    expect(r.puzzle).toBe(sym);
+    expect(r.notice).toMatch(/simmetrici/);
+  });
+
+  it('segnala i ponti rimossi da un lato interrotto o da un cambio di griglia', () => {
+    const p = setPoint(setPoint(createPuzzle(3, 3), { x: 1, y: 1 }, { type: 'bridge' }), { x: 2, y: 2 }, { type: 'bridge' });
+    const gap = applyTool(p, { ...DEFAULT_TOOL, kind: 'gap' }, { kind: 'edge', at: { x: 1, y: 1, dir: 'h' } }, 'add');
+    expect(gap.removedBridges).toBe(1);
+    expect(bridgeLossNotice(p, gap.puzzle)).toBe('Rimosso 1 ponte non più valido.');
+    expect(bridgeLossNotice(p, setSymmetry(p, 'vertical'))).toBe('Rimossi 2 ponti non più validi.');
+    expect(bridgeLossNotice(p, p)).toBeNull();
+    const hex = applyTool(p, { ...DEFAULT_TOOL, kind: 'hexagon' }, { kind: 'edge', at: { x: 1, y: 1, dir: 'h' } }, 'add');
+    expect(hex.removedBridges).toBeUndefined();
   });
 });

@@ -41,6 +41,8 @@ import {
   type ToolKind,
   type ToolState,
   applyTool,
+  bridgeLossNotice,
+  bridgeProblem,
   emptyShape,
   hitTest,
   isAlreadyThere,
@@ -55,7 +57,7 @@ import {
 } from './editorTools';
 import { PuzzleBoard, clientToGrid } from './PuzzleBoard';
 import { PuzzlePlayer } from './PuzzlePlayer';
-import { CellSymbol, Hexagon, LINE, START_R, U, colorVar } from './Symbols';
+import { Bridge, CellSymbol, Hexagon, LINE, START_R, U, colorVar } from './Symbols';
 import { EXIT_LENGTH } from './tracing';
 import { backgroundCss } from './background';
 import { downloadText, slugify } from './collectionOps';
@@ -105,6 +107,7 @@ const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
       { kind: 'start', label: 'Partenza', hint: 'Clic su un incrocio' },
       { kind: 'end', label: 'Uscita', hint: 'Sul bordo o accanto a un lato assente: avvicina il puntatore al lato verso cui deve uscire (R per ruotare)' },
       { kind: 'hexagon', label: 'Esagono', hint: 'Su incrocio o lato: il percorso ci deve passare' },
+      { kind: 'bridge', label: 'Ponte', hint: 'Incrocio interno con 4 lati: il percorso può passarci due volte' },
     ],
   },
   {
@@ -437,6 +440,17 @@ function ToolIcon({ kind, tool }: { kind: ToolKind; tool: ToolState }) {
         </g>
       );
       break;
+    case 'bridge':
+      body = (
+        <g>
+          <polyline points="-45,0 45,0" style={lineStyle} />
+          <polyline points="0,-45 0,45" style={lineStyle} />
+          <g style={{ stroke: 'var(--ep-hexagon)' }} transform="scale(1.1)">
+            <Bridge />
+          </g>
+        </g>
+      );
+      break;
     case 'gap':
       body = (
         <g>
@@ -540,6 +554,12 @@ export function PuzzleEditor({
 
   /** Ogni modifica mantiene l'id del puzzle (anche importando o svuotando). */
   const commit = (p: Puzzle, coalesce = false) => history.push(keepId(p, puzzle.id), coalesce);
+  /** Ridimensionamento o simmetria: avvisa se qualche ponte è sparito. */
+  const commitGrid = (p: Puzzle) => {
+    const lost = bridgeLossNotice(puzzle, p);
+    if (lost) flash(lost);
+    commit(p);
+  };
 
   // --- scorciatoie
   useEffect(() => {
@@ -604,6 +624,7 @@ export function PuzzleEditor({
     paint.current = { mode: m, done: new Set([targetKey(t)]), base: puzzle };
     const r = applyTool(puzzle, tool, t, m);
     if (r.notice) flash(r.notice, 'error');
+    else if (r.removedBridges) flash(bridgeLossNotice(puzzle, r.puzzle)!);
     commit(r.puzzle);
   };
 
@@ -620,6 +641,7 @@ export function PuzzleEditor({
     const already = isAlreadyThere(puzzle, tool, t);
     if ((pt.mode === 'add') === already) return;
     const r = applyTool(puzzle, tool, t, pt.mode);
+    if (r.removedBridges) flash(bridgeLossNotice(puzzle, r.puzzle)!);
     commit(r.puzzle, true);
   };
 
@@ -646,7 +668,10 @@ export function PuzzleEditor({
       );
     }
     if (hover.kind === 'point') {
-      const bad = tool.kind === 'end' && !remove && !autoEndDirection(indexPuzzle(puzzle), hover.at);
+      const bad =
+        !remove &&
+        ((tool.kind === 'end' && !autoEndDirection(indexPuzzle(puzzle), hover.at)) ||
+          (tool.kind === 'bridge' && !!bridgeProblem(puzzle, hover.at)));
       const ghost = tool.kind === 'end' && !remove && hover.dir ? DIRECTIONS[hover.dir] : null;
       return (
         <g className={`${cls}${bad ? ' ep-hover--bad' : ''}`} transform={`translate(${hover.at.x * U},${hover.at.y * U})`}>
@@ -791,7 +816,12 @@ export function PuzzleEditor({
                     setTool({ ...tool, kind: t.kind });
                     setMode('edit');
                   }}
-                  title={`${t.label} — ${t.hint}`}
+                  disabled={t.kind === 'bridge' && puzzle.symmetry !== 'none'}
+                  title={
+                    t.kind === 'bridge' && puzzle.symmetry !== 'none'
+                      ? `${t.label} — Non disponibile nei puzzle simmetrici`
+                      : `${t.label} — ${t.hint}`
+                  }
                   aria-pressed={tool.kind === t.kind}
                 >
                   <ToolIcon kind={t.kind} tool={tool} />
@@ -984,7 +1014,7 @@ export function PuzzleEditor({
               <div className="ep-row">
                 <label className="ep-field">
                   <span>Larghezza</span>
-                  <select value={puzzle.width} onChange={(e) => commit(resizePuzzle(puzzle, +e.target.value, puzzle.height))}>
+                  <select value={puzzle.width} onChange={(e) => commitGrid(resizePuzzle(puzzle, +e.target.value, puzzle.height))}>
                     {sizeOptions.map((n) => (
                       <option key={n}>{n}</option>
                     ))}
@@ -992,7 +1022,7 @@ export function PuzzleEditor({
                 </label>
                 <label className="ep-field">
                   <span>Altezza</span>
-                  <select value={puzzle.height} onChange={(e) => commit(resizePuzzle(puzzle, puzzle.width, +e.target.value))}>
+                  <select value={puzzle.height} onChange={(e) => commitGrid(resizePuzzle(puzzle, puzzle.width, +e.target.value))}>
                     {sizeOptions.map((n) => (
                       <option key={n}>{n}</option>
                     ))}
@@ -1001,7 +1031,7 @@ export function PuzzleEditor({
               </div>
               <label className="ep-field">
                 <span>Simmetria</span>
-                <select value={puzzle.symmetry} onChange={(e) => commit(setSymmetry(puzzle, e.target.value as Symmetry))}>
+                <select value={puzzle.symmetry} onChange={(e) => commitGrid(setSymmetry(puzzle, e.target.value as Symmetry))}>
                   {(Object.keys(SYMMETRY_LABELS) as Symmetry[]).map((s) => (
                     <option key={s} value={s}>
                       {SYMMETRY_LABELS[s]}
