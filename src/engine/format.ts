@@ -9,6 +9,7 @@ import {
   type PuzzleBackground,
   type PuzzleCollection,
   type PuzzlePalette,
+  type PuzzleRainbow,
   type Symmetry,
   COLORS,
   FORMAT_ID,
@@ -98,6 +99,41 @@ export function parsePalette(raw: unknown, warnings: string[] = []): PuzzlePalet
   // Ordine stabile delle chiavi.
   const sorted: PuzzlePalette = {};
   for (const k of PALETTE_KEYS) if (out[k]) sorted[k] = out[k];
+  return Object.keys(sorted).length ? sorted : null;
+}
+
+export const RAINBOW_PERIOD_MIN = 1;
+export const RAINBOW_PERIOD_MAX = 60;
+export const RAINBOW_PERIOD_DEFAULT = 8;
+const RAINBOW_KEYS = ['elements', 'background'] as const;
+
+/** Legge e ripulisce un campo `rainbow`; null se vuoto o non utilizzabile. */
+export function parseRainbow(raw: unknown, warnings: string[] = []): PuzzleRainbow | null {
+  if (raw === undefined || raw === null) return null;
+  if (!isObj(raw)) {
+    warnings.push('"rainbow" deve essere un oggetto, ignorato.');
+    return null;
+  }
+  const out: PuzzleRainbow = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!(RAINBOW_KEYS as readonly string[]).includes(k)) {
+      warnings.push(`rainbow.${k}: chiave sconosciuta, ignorata.`);
+      continue;
+    }
+    if (v === undefined || v === null || v === false) continue;
+    let period = RAINBOW_PERIOD_DEFAULT;
+    if (!isObj(v)) warnings.push(`rainbow.${k} deve essere un oggetto, uso un ciclo di ${period} s.`);
+    else if (v.period !== undefined) {
+      if (typeof v.period === 'number' && Number.isFinite(v.period)) {
+        const c = Math.min(RAINBOW_PERIOD_MAX, Math.max(RAINBOW_PERIOD_MIN, Math.round(v.period * 10) / 10));
+        if (c !== v.period) warnings.push(`rainbow.${k}.period: ${v.period} fuori da ${RAINBOW_PERIOD_MIN}–${RAINBOW_PERIOD_MAX} s, uso ${c}.`);
+        period = c;
+      } else warnings.push(`rainbow.${k}.period non valido, uso ${period} s.`);
+    }
+    out[k as (typeof RAINBOW_KEYS)[number]] = { period };
+  }
+  const sorted: PuzzleRainbow = {};
+  for (const k of RAINBOW_KEYS) if (out[k]) sorted[k] = out[k];
   return Object.keys(sorted).length ? sorted : null;
 }
 
@@ -223,6 +259,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
 
   const background = parseBackground(raw.background, warnings);
   const palette = parsePalette(raw.palette, warnings);
+  const rainbow = parseRainbow(raw.rainbow, warnings);
 
   const puzzle: Puzzle = {
     format: FORMAT_ID,
@@ -231,6 +268,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
     ...(typeof raw.title === 'string' ? { title: raw.title } : {}),
     ...(background ? { background } : {}),
     ...(palette ? { palette } : {}),
+    ...(rainbow ? { rainbow } : {}),
     ...(isObj(raw.data) ? { data: raw.data } : {}),
     width,
     height,
@@ -323,6 +361,7 @@ function canonical<T extends object>(item: T): T {
 export function toPuzzleObject(p: Puzzle): Puzzle {
   const background = p.background ? parseBackground(p.background) : null;
   const palette = p.palette ? parsePalette(p.palette) : null;
+  const rainbow = p.rainbow ? parseRainbow(p.rainbow) : null;
   const out: Puzzle = {
     format: FORMAT_ID,
     version: FORMAT_VERSION,
@@ -330,6 +369,7 @@ export function toPuzzleObject(p: Puzzle): Puzzle {
     ...(p.title ? { title: p.title } : {}),
     ...(background ? { background } : {}),
     ...(palette ? { palette } : {}),
+    ...(rainbow ? { rainbow } : {}),
     width: p.width,
     height: p.height,
     symmetry: p.symmetry,

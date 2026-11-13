@@ -126,6 +126,23 @@ export interface PuzzlePalette {
   success?: string;
 }
 
+/** Un livello dell'effetto arcobaleno: presente = attivo. */
+export interface RainbowLayer {
+  /** Secondi per un ciclo completo dei colori (RAINBOW_PERIOD_MIN–MAX). */
+  period: number;
+}
+
+/**
+ * Effetto arcobaleno, puramente visivo: i colori ciclano partendo da quello
+ * base, che resta l'unico usato dalle regole. La griglia non è coinvolta.
+ */
+export interface PuzzleRainbow {
+  /** Simboli di cella, esagoni e ponti. */
+  elements?: RainbowLayer;
+  /** Sfondo del pannello. */
+  background?: RainbowLayer;
+}
+
 export interface PuzzleMeta {
   /**
    * Identificativo interno, univoco tra tutte le raccolte (`p1`, `p2`, …).
@@ -137,6 +154,8 @@ export interface PuzzleMeta {
   background?: PuzzleBackground;
   /** Colori di griglia e percorsi (solo con `background`). */
   palette?: PuzzlePalette;
+  /** Colori che ciclano durante il gioco (solo visivo). */
+  rainbow?: PuzzleRainbow;
   /** Campo libero per l'applicazione che ospita il puzzle (es. Edenna OS). */
   data?: Record<string, unknown>;
 }

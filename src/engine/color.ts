@@ -299,3 +299,55 @@ export function suggestPalette(bg: PuzzleBackground): Required<PuzzlePalette> {
   const success = suggestColors(bg, 'success', { line, path }, 1)[0]?.color ?? '#000000';
   return { line, path, success };
 }
+
+// ---------------------------------------------------------------------------
+// OKLCH (Björn Ottosson). Tinta percettiva: a parità di L la luminosità
+// percepita resta stabile mentre la tinta ruota (serve all'effetto arcobaleno).
+
+export interface OKLCH {
+  /** 0–1 */
+  l: number;
+  /** 0–~0.37 */
+  c: number;
+  /** 0–360 */
+  h: number;
+}
+
+const toLinear = (v: number) => {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const fromLinear = (v: number) => 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+
+export function rgbToOklch({ r, g, b }: RGB): OKLCH {
+  const R = toLinear(r);
+  const G = toLinear(g);
+  const B = toLinear(b);
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const Bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  const c = Math.hypot(A, Bb);
+  const h = c < 1e-4 ? 0 : ((Math.atan2(Bb, A) * 180) / Math.PI + 360) % 360;
+  return { l: L, c, h };
+}
+
+/** Colore sRGB da OKLCH; i valori fuori gamut vengono tagliati. */
+export function oklchToRgb({ l: L, c, h }: OKLCH): RGB {
+  const hr = (h * Math.PI) / 180;
+  const A = c * Math.cos(hr);
+  const B = c * Math.sin(hr);
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+  const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+  return {
+    r: fromLinear(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    g: fromLinear(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    b: fromLinear(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+  };
+}
+
+export const hexToOklch = (hex: string) => rgbToOklch(hexToRgb(hex));
+export const oklchToHex = (c: OKLCH) => rgbToHex(oklchToRgb(c));

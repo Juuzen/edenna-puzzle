@@ -7,6 +7,8 @@ import {
   hexToRgb,
   hslToHex,
   hexToHsl,
+  hexToOklch,
+  oklchToHex,
   hueDistance,
   minContrast,
   suggestColors,
@@ -97,5 +99,22 @@ describe('suggerimenti indipendenti fra chiamate', () => {
     const h = hexToHsl(red).h;
     expect(Math.min(h, 360 - h)).toBeLessThan(20);
     expect(suggestColors({ colors: ['#d4384a'] }, 'line')).toEqual(suggestColors({ colors: ['#d4384a'] }, 'line'));
+  });
+});
+
+describe('OKLCH', () => {
+  it('andata e ritorno sui colori del tema', () => {
+    for (const hex of ['#1c222b', '#ffffff', '#12b5c9', '#c2358f', '#e9b322', '#d4384a', '#2fa652', '#2f63d8', '#ef7d1a'])
+      expect(oklchToHex(hexToOklch(hex))).toBe(hex);
+  });
+
+  it('valori noti', () => {
+    const w = hexToOklch('#ffffff');
+    expect(w.l).toBeCloseTo(1, 3);
+    expect(w.c).toBeLessThan(1e-3);
+    const red = hexToOklch('#ff0000');
+    expect(red.l).toBeCloseTo(0.628, 2);
+    expect(red.c).toBeCloseTo(0.258, 2);
+    expect(red.h).toBeCloseTo(29.2, 0);
   });
 });

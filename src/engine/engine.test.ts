@@ -406,3 +406,29 @@ describe('palette dei colori', () => {
     expect(serializePuzzle({ ...base(), palette: {} })).not.toContain('palette');
   });
 });
+
+describe('arcobaleno', () => {
+  it('andata e ritorno', () => {
+    const p = { ...base(), rainbow: { background: { period: 20 }, elements: { period: 4 } } };
+    const json = serializePuzzle(p);
+    const { puzzle, warnings } = parsePuzzle(json);
+    expect(warnings).toEqual([]);
+    expect(puzzle.rainbow).toEqual({ elements: { period: 4 }, background: { period: 20 } });
+    // Ordine stabile: prima gli elementi.
+    expect(Object.keys(JSON.parse(json).rainbow)).toEqual(['elements', 'background']);
+  });
+
+  it('periodi fuori range o non validi corretti con avvisi; chiavi sconosciute scartate', () => {
+    const r = parsePuzzle({ width: 2, height: 2, rainbow: { elements: { period: 0.2 }, background: { period: 'x' }, grid: {} } });
+    expect(r.puzzle.rainbow).toEqual({ elements: { period: 1 }, background: { period: 8 } });
+    expect(r.warnings.filter((w) => w.startsWith('rainbow'))).toHaveLength(3);
+    expect(parsePuzzle({ width: 2, height: 2, rainbow: { elements: {} } }).puzzle.rainbow).toEqual({ elements: { period: 8 } });
+    expect(parsePuzzle({ width: 2, height: 2, rainbow: { elements: { period: 999 } } }).puzzle.rainbow?.elements?.period).toBe(60);
+  });
+
+  it('vuoto o disattivato → omesso; tipo errato → avviso', () => {
+    expect(parsePuzzle({ width: 2, height: 2, rainbow: { elements: false } }).puzzle.rainbow).toBeUndefined();
+    expect(serializePuzzle({ ...base(), rainbow: {} })).not.toContain('rainbow');
+    expect(parsePuzzle({ width: 2, height: 2, rainbow: 'sì' }).warnings.length).toBeGreaterThan(0);
+  });
+});
