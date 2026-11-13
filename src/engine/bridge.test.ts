@@ -25,7 +25,7 @@ const big = () => withBridge(createPuzzle(3, 3), 1, 1);
 
 /** Dritto/dritto: sinistra→destra, poi basso→alto. */
 const STRAIGHT = P([[0, 2], [0, 1], [1, 1], [2, 1], [2, 2], [1, 2], [1, 1], [1, 0], [2, 0]]);
-/** Curva/curva in (1,1): sinistra→su, poi destra→giù. */
+/** Curva/curva in (1,1): sinistra→su, poi destra→giù (non consentito). */
 const CURVES = P([[0, 3], [0, 2], [0, 1], [1, 1], [1, 0], [2, 0], [2, 1], [1, 1], [1, 2], [2, 2], [3, 2], [3, 1], [3, 0]]);
 
 describe('ponte: posizionamento', () => {
@@ -61,14 +61,21 @@ describe('ponte: posizionamento', () => {
 });
 
 describe('ponte: validazione', () => {
-  it('doppio passaggio dritto/dritto e curva/curva', () => {
+  it('doppio passaggio dritto/dritto', () => {
     expect(validate(small(), [STRAIGHT]).messages).toEqual([]);
-    expect(validate(big(), [CURVES]).messages).toEqual([]);
+  });
+
+  it('sul ponte non si curva', () => {
+    // Due passaggi in curva: un errore per ciascuno.
+    expect(validate(big(), [CURVES]).messages).toEqual(Array(2).fill('Sul ponte 1,1 il percorso deve andare dritto.'));
+    // Neanche con un solo passaggio.
+    const once = P([[0, 2], [0, 1], [1, 1], [1, 0], [2, 0]]);
+    expect(validate(small(), [once]).messages).toEqual(['Sul ponte 1,1 il percorso deve andare dritto.']);
   });
 
   it('il ponte è facoltativo', () => {
     expect(validate(small(), [P([[0, 2], [0, 1], [0, 0], [1, 0], [2, 0]])]).valid).toBe(true);
-    expect(validate(small(), [P([[0, 2], [0, 1], [1, 1], [1, 0], [2, 0]])]).valid).toBe(true);
+    expect(validate(small(), [P([[0, 2], [0, 1], [1, 1], [2, 1], [2, 0]])]).valid).toBe(true);
   });
 
   it('doppio passaggio su un punto normale è un errore', () => {
@@ -105,10 +112,9 @@ describe('ponte: solver', () => {
     const r = solve(p, { maxSolutions: 2 });
     expect(r.exhaustive).toBe(true);
     expect(r.solutions).toEqual([[STRAIGHT]]);
-    // La gemella con l'anello percorso al contrario (curva/curva) è valida,
-    // ma ha gli stessi lati: per il solver è la stessa soluzione.
+    // Stessi lati con l'anello percorso al contrario: curva/curva, non valida.
     const twin = P([[0, 2], [0, 1], [1, 1], [1, 2], [2, 2], [2, 1], [1, 1], [1, 0], [2, 0]]);
-    expect(validate(p, [twin]).valid).toBe(true);
+    expect(validate(p, [twin]).valid).toBe(false);
     // Senza ponte lo stesso puzzle non ha soluzione.
     expect(solve(setPoint(p, { x: 1, y: 1 }, null), { maxSolutions: 1 }).solutions).toEqual([]);
   });

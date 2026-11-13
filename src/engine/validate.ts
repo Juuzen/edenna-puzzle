@@ -5,6 +5,7 @@ import {
   edgeKey,
   edgeRefKey,
   getPoint,
+  goesStraight,
   indexPuzzle,
   isEdgeTraversable,
   maxPasses,
@@ -62,7 +63,8 @@ export function checkPathStructure(puzzle: Puzzle, paths: Path[]): string[] {
     msgs.push(`Servono ${expected} percorsi, ricevuti ${paths.length}.`);
     return msgs;
   }
-  // Un punto si attraversa una volta (due sui ponti), un lato mai due volte.
+  // Un punto si attraversa una volta (due sui ponti, sempre dritto), un lato
+  // mai due volte.
   const passes = new Map<string, number>();
   const usedEdges = new Set<string>();
   for (const path of paths) {
@@ -77,6 +79,10 @@ export function checkPathStructure(puzzle: Puzzle, paths: Path[]): string[] {
       const n = (passes.get(k) ?? 0) + 1;
       passes.set(k, n);
       if (n > maxPasses(idx, c)) msgs.push(`Il punto ${k} è attraversato più volte.`);
+      const next = path[i + 1];
+      if (i > 0 && next && getPoint(idx, c)?.type === 'bridge' && !goesStraight(path[i - 1], c, next)) {
+        msgs.push(`Sul ponte ${k} il percorso deve andare dritto.`);
+      }
       if (i > 0) {
         const prev = path[i - 1];
         if (Math.abs(prev.x - c.x) + Math.abs(prev.y - c.y) !== 1) {

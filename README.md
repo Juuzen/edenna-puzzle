@@ -144,7 +144,7 @@ Un solo elemento per posizione.
 | punto | `start` | | Da qui parte il percorso |
 | punto | `end` | `dir?` (`up`/`down`/`left`/`right`) | Uscita. Va sul bordo o accanto a un lato `missing`; senza `dir` la direzione è automatica |
 | punto | `hexagon` | | Il percorso deve passare per quel punto |
-| punto | `bridge` | | Incrocio interno a 4 lati percorribili; il percorso può passarci due volte; mai nei puzzle simmetrici |
+| punto | `bridge` | | Incrocio interno a 4 lati percorribili; il percorso può passarci due volte, sempre dritto; mai nei puzzle simmetrici |
 | lato | `hexagon` | | Il percorso deve percorrere quel lato |
 | lato | `gap` | | Lato spezzato, non percorribile |
 | lato | `missing` | | Lato assente (non disegnato) |
@@ -196,9 +196,8 @@ elenca in `warnings`; solo dimensioni non valide o JSON malformato sono errori.
   annullarsi a vicenda, e un simbolo può essere annullato solo se era davvero sbagliato.
 - Il **solver** è un controllo esaustivo per l'editor (dice se la soluzione è unica, multipla o assente,
   con un limite di tempo di 4 s). Non fa parte del player.
-- Nuovo simbolo **ponte** (`bridge`): un incrocio che il percorso può attraversare due volte, senza
-  mai ripercorrere un lato. Il secondo passaggio è disegnato sopra il primo. Le due varianti con
-  l'anello percorso nei due versi hanno gli stessi lati e per il solver sono la stessa soluzione.
+- Nuovo simbolo **ponte** (`bridge`): un incrocio che il percorso può attraversare due volte, sempre
+  dritto e senza mai ripercorrere un lato. Il secondo passaggio è disegnato sopra il primo.
 - Niente server: pubblicazione, login e lista online dell'originale sono stati tolti. Al loro posto
   ci sono file JSON e una raccolta locale nella demo.
 - Il tracciamento usa il puntatore in posizione assoluta invece del pointer lock, così funziona

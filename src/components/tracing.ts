@@ -9,6 +9,7 @@ import {
   edgeRefKey,
   endDirection,
   getPoint,
+  goesStraight,
   inPointBounds,
   isEdgeGap,
   isEdgeTraversable,
@@ -95,6 +96,10 @@ function reach(idx: PuzzleIndex, s: TraceState, from: Coord, dir: Direction): nu
     if ((passes.get(pointKey(n.x, n.y)) ?? 0) >= maxPasses(idx, n)) return COLLIDE_REACH;
     return 1;
   };
+
+  // Sul ponte si va solo dritto: niente svolte dal punto d'incrocio.
+  const prev = s.path[s.path.length - 2];
+  if (prev && getPoint(idx, from)?.type === 'bridge' && !goesStraight(prev, from, neighbor(from, dir))) return 0;
 
   let r = single(from, dir);
   if (sym !== 'none' && r > 0) {

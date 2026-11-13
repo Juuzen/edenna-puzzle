@@ -134,7 +134,8 @@ function isEdgeAbsent(idx: PuzzleIndex, e: EdgeRef) {
 
 /**
  * Un ponte si può mettere solo su un incrocio interno i cui quattro lati
- * siano percorribili, e mai in un puzzle simmetrico.
+ * siano percorribili, e mai in un puzzle simmetrico. Il percorso lo
+ * attraversa sempre dritto, al massimo due volte (una per direzione).
  */
 export function canPlaceBridge(p: Puzzle, at: Coord): boolean {
   if (p.symmetry !== 'none') return false;
@@ -146,6 +147,9 @@ export function canPlaceBridge(p: Puzzle, at: Coord): boolean {
 }
 
 export const countBridges = (p: Puzzle) => p.points.filter((it) => it.type === 'bridge').length;
+
+/** `b` sta fra `a` e `c` in linea retta (sul ponte si va solo dritto). */
+export const goesStraight = (a: Coord, b: Coord, c: Coord) => a.x + c.x === 2 * b.x && a.y + c.y === 2 * b.y;
 
 /** Quante volte il percorso può passare per un punto (2 sui ponti). */
 export const maxPasses = (idx: PuzzleIndex, c: Coord) => (getPoint(idx, c)?.type === 'bridge' ? 2 : 1);

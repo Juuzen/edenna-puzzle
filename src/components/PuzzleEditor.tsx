@@ -107,7 +107,7 @@ const TOOL_GROUPS: { title: string; tools: ToolDef[] }[] = [
       { kind: 'start', label: 'Partenza', hint: 'Clic su un incrocio' },
       { kind: 'end', label: 'Uscita', hint: 'Sul bordo o accanto a un lato assente: avvicina il puntatore al lato verso cui deve uscire (R per ruotare)' },
       { kind: 'hexagon', label: 'Esagono', hint: 'Su incrocio o lato: il percorso ci deve passare' },
-      { kind: 'bridge', label: 'Ponte', hint: 'Incrocio interno con 4 lati: il percorso può passarci due volte' },
+      { kind: 'bridge', label: 'Ponte', hint: 'Incrocio interno con 4 lati: il percorso può passarci due volte, sempre dritto' },
     ],
   },
   {

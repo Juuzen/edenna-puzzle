@@ -2,6 +2,7 @@ import {
   edgeBetween,
   edgeRefKey,
   getPoint,
+  goesStraight,
   indexPuzzle,
   isEdgeTraversable,
   maxPasses,
@@ -55,19 +56,8 @@ export function solve(puzzle: Puzzle, opts: SolveOptions = {}): SolveResult {
   const mpath: Coord[] = [];
 
   const isEnd = (c: Coord) => getPoint(idx, c)?.type === 'end';
+  const isBridge = (c: Coord) => getPoint(idx, c)?.type === 'bridge';
 
-  // Con un ponte attraversato due volte, l'anello fra i due passaggi si può
-  // percorrere nei due versi: stessi lati, stesso disegno finale. Le due
-  // varianti contano come una sola soluzione.
-  const seenEdgeSets = new Set<string>();
-  const isNewSolution = (paths: Path[]) => {
-    const keys: string[] = [];
-    for (const p of paths) for (let i = 1; i < p.length; i++) keys.push(edgeRefKey(edgeBetween(p[i - 1], p[i])));
-    const k = `${pointKey(paths[0][0].x, paths[0][0].y)}|${keys.sort().join(';')}`;
-    if (seenEdgeSets.has(k)) return false;
-    seenEdgeSets.add(k);
-    return true;
-  };
 
   const dfs = (cur: Coord) => {
     if (aborted) return;
@@ -78,7 +68,7 @@ export function solve(puzzle: Puzzle, opts: SolveOptions = {}): SolveResult {
     if (isEnd(cur) && (sym === 'none' || isEnd(mirror(cur)))) {
       const paths = sym === 'none' ? [[...path]] : [[...path], [...mpath]];
       checked++;
-      if (validate(puzzle, paths).valid && isNewSolution(paths)) {
+      if (validate(puzzle, paths).valid) {
         solutions.push(paths);
         if (solutions.length >= maxSolutions) {
           aborted = true;
@@ -96,6 +86,8 @@ export function solve(puzzle: Puzzle, opts: SolveOptions = {}): SolveResult {
       const nk = pointKey(next.x, next.y);
       if (next.x < 0 || next.y < 0 || next.x > puzzle.width || next.y > puzzle.height) continue;
       if (full(next, nk)) continue;
+      // Sul ponte si va solo dritto.
+      if (path.length >= 2 && isBridge(cur) && !goesStraight(path[path.length - 2], cur, next)) continue;
       const edge = edgeBetween(cur, next);
       const ek = edgeRefKey(edge);
       if (usedEdges.has(ek) || !isEdgeTraversable(idx, edge)) continue;

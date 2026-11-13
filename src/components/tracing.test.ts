@@ -130,17 +130,14 @@ describe('ponte', () => {
     expect(r.maxJump).toBeLessThan(0.1);
   });
 
-  it('col puntatore: curva/curva', () => {
-    const r = drive(idx, { x: 0, y: 3 }, [
-      { x: 0, y: 1 },
-      { x: 1, y: 1 },
-      { x: 1, y: 0 },
-      { x: 2, y: 0 },
-      { x: 2, y: 1 },
-      { x: 1, y: 1 },
-      { x: 1, y: 2 },
-    ]);
-    expect(keys(r.s)).toBe('03 02 01 11 10 20 21 11 12');
+  it('col puntatore: sul ponte non si curva', () => {
+    const r = drive(idx, { x: 0, y: 3 }, [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0.5 }]);
+    expect(keys(r.s)).toBe('03 02 01 11');
+    expect(headPosition(r.s)).toEqual({ x: 1, y: 1 });
+    // Dritto invece si prosegue.
+    expect(keys(stepTrace(idx, r.s, 'right'))).toBe('03 02 01 11 21');
+    expect(keys(stepTrace(idx, r.s, 'up'))).toBe('03 02 01 11');
+    expect(keys(stepTrace(idx, r.s, 'down'))).toBe('03 02 01 11');
   });
 
   it('lato già percorso e terzo passaggio non consentiti', () => {
