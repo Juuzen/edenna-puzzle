@@ -205,7 +205,7 @@
 /*
  * Arcobaleno (solo in gioco): rainbow.ts ridefinisce --ep-c-*, --ep-hexagon e
  * --ep-bg-a/b come oklch() con la tinta legata a questi angoli; qui li si
- * anima. Il ritardo negativo allinea le animazioni all'orologio della pagina.
+ * anima. syncRainbowClock() allinea le animazioni all'orologio della pagina.
  */
 @property --ep-rb-el {
   syntax: '<angle>';
@@ -226,15 +226,15 @@
   to { --ep-rb-bg: 360deg; }
 }
 .ep-rainbow-el {
-  animation: ep-rainbow-el var(--ep-rb-el-dur) linear var(--ep-rb-el-delay) infinite;
+  animation: ep-rainbow-el var(--ep-rb-el-dur) linear infinite;
 }
 .ep-rainbow-bg {
-  animation: ep-rainbow-bg var(--ep-rb-bg-dur) linear var(--ep-rb-bg-delay) infinite;
+  animation: ep-rainbow-bg var(--ep-rb-bg-dur) linear infinite;
 }
 .ep-rainbow-el.ep-rainbow-bg {
   animation:
-    ep-rainbow-el var(--ep-rb-el-dur) linear var(--ep-rb-el-delay) infinite,
-    ep-rainbow-bg var(--ep-rb-bg-dur) linear var(--ep-rb-bg-delay) infinite;
+    ep-rainbow-el var(--ep-rb-el-dur) linear infinite,
+    ep-rainbow-bg var(--ep-rb-bg-dur) linear infinite;
 }
 .ep-rainbow-bg .ep-panel {
   fill: var(--ep-bg-a);
@@ -247,16 +247,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   /* Il ciclo continua, ma molto più lento. */
-  .ep-rainbow-el {
-    animation-duration: var(--ep-rb-el-dur-rm);
-    animation-delay: var(--ep-rb-el-delay-rm);
-  }
-  .ep-rainbow-bg {
-    animation-duration: var(--ep-rb-bg-dur-rm);
-    animation-delay: var(--ep-rb-bg-delay-rm);
-  }
-  .ep-rainbow-el.ep-rainbow-bg {
-    animation-duration: var(--ep-rb-el-dur-rm), var(--ep-rb-bg-dur-rm);
-    animation-delay: var(--ep-rb-el-delay-rm), var(--ep-rb-bg-delay-rm);
-  }
+  .ep-rainbow-el { animation-duration: var(--ep-rb-el-dur-rm); }
+  .ep-rainbow-bg { animation-duration: var(--ep-rb-bg-dur-rm); }
+  .ep-rainbow-el.ep-rainbow-bg { animation-duration: var(--ep-rb-el-dur-rm), var(--ep-rb-bg-dur-rm); }
 }

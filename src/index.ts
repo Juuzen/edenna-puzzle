@@ -26,6 +26,7 @@ export {
   rainbowBackgroundCss,
   rainbowLayers,
   rainbowWorstContrast,
+  syncRainbowClock,
   type RainbowStyle,
 } from './components/rainbow';
 export {

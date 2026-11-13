@@ -5,7 +5,6 @@ import {
   RAINBOW_PHASES,
   backgroundColorAt,
   elementColorAt,
-  rainbowDelay,
   rainbowLayers,
   rainbowStyle,
   rainbowWorstContrast,
@@ -66,7 +65,7 @@ describe('stile e orologio', () => {
   it('classi e variabili solo per i livelli attivi', () => {
     expect(rainbowStyle(undefined, undefined)).toBeNull();
     expect(rainbowStyle({}, undefined)).toBeNull();
-    const el = rainbowStyle({ elements: { period: 5 } }, undefined, { now: 0 })!;
+    const el = rainbowStyle({ elements: { period: 5 } }, undefined)!;
     expect(el.className).toBe('ep-rainbow-el');
     const vars = el.style as Record<string, string>;
     expect(vars['--ep-c-red']).toContain('var(--ep-rb-el)');
@@ -79,12 +78,10 @@ describe('stile e orologio', () => {
     expect(rainbowLayers({ background: { period: 3 } })).toEqual(['background']);
   });
 
-  it('ritardo allineato all\'orologio della pagina', () => {
-    expect(rainbowDelay(8, 0)).toBe('0s');
-    expect(rainbowDelay(8, 10_500)).toBe('-2.5s');
-    // Due elementi montati in momenti diversi sono nella stessa fase.
-    const phase = (mount: number, now: number) => (now - mount - parseFloat(rainbowDelay(8, mount)) * 1000) % 8000;
-    expect(phase(1_234, 50_000)).toBeCloseTo(phase(7_777, 50_000), 6);
+  it('durate normali e con movimento ridotto', () => {
+    const vars = rainbowStyle({ elements: { period: 6 } }, undefined)!.style as Record<string, string>;
+    expect(vars['--ep-rb-el-dur']).toBe('6s');
+    expect(vars['--ep-rb-el-dur-rm']).toBe('120s');
     expect(reducedPeriod(4)).toBe(120);
     expect(reducedPeriod(30)).toBe(240);
   });

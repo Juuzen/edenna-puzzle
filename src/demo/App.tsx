@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ImportDialog,
   PuzzleEditor,
@@ -12,6 +12,7 @@ import {
   parsePuzzleSet,
   rainbowBackgroundCss,
   rainbowStyle,
+  syncRainbowClock,
   replacePuzzleById,
   serializeCollection,
   type ImportSource,
@@ -92,13 +93,15 @@ export function App() {
   const current = col.puzzles[pi];
 
   // Contorno della pagina di gioco: se lo sfondo è in arcobaleno cicla in
-  // fase con il pannello (stesso orologio, vedi rainbowDelay).
+  // fase con il pannello (stesso orologio, vedi syncRainbowClock).
   const rbBgPeriod = current.rainbow?.background?.period;
   const bgKey = current.background?.colors.join() ?? '';
   const playRainbow = useMemo(
     () => (rbBgPeriod ? rainbowStyle({ background: { period: rbBgPeriod } }, current.background) : null),
     [rbBgPeriod, bgKey],
   );
+  const playRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => syncRainbowClock(playRef.current), [playRainbow, view]);
   const playStyle = playRainbow
     ? { ...playRainbow.style, background: rainbowBackgroundCss(current.background) }
     : current.background
@@ -188,7 +191,7 @@ export function App() {
               }
             />
           ) : (
-            <div className={playRainbow ? `play ${playRainbow.className}` : 'play'} style={playStyle}>
+            <div ref={playRef} className={playRainbow ? `play ${playRainbow.className}` : 'play'} style={playStyle}>
               <div className="play-head">
                 <button onClick={() => playNext(-1)} aria-label="Precedente">
                   ‹

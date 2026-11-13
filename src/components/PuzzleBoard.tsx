@@ -1,6 +1,6 @@
-import { forwardRef, useId, useMemo, type ReactNode, type SVGProps } from 'react';
+import { forwardRef, useCallback, useId, useLayoutEffect, useMemo, useRef, type ReactNode, type SVGProps } from 'react';
 import { gradientLine, paletteCssVars } from './background';
-import { rainbowStyle } from './rainbow';
+import { rainbowStyle, syncRainbowClock } from './rainbow';
 import {
   DEFAULT_BACKGROUND_ANGLE,
   type Coord,
@@ -160,8 +160,8 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
           line: gradientLine(panel.x, panel.y, panel.w, panel.h, bg.angle ?? DEFAULT_BACKGROUND_ANGLE),
         }
       : null;
-  // Arcobaleno: variabili oklch() animate in CSS. L'orologio si legge una
-  // volta per configurazione, così i ri-render non fanno saltare il ciclo.
+  // Arcobaleno: variabili oklch() animate in CSS, allineate all'orologio
+  // della pagina dopo ogni cambio di configurazione.
   const rbEl = animateRainbow ? puzzle.rainbow?.elements?.period : undefined;
   const rbBg = animateRainbow ? puzzle.rainbow?.background?.period : undefined;
   const rainbow = useMemo(
@@ -173,6 +173,16 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
     [rbEl, rbBg, bg?.colors[0], bg?.colors[1]],
   );
   const rbBackground = !!rbBg;
+  const svgEl = useRef<SVGSVGElement | null>(null);
+  const setRef = useCallback(
+    (el: SVGSVGElement | null) => {
+      svgEl.current = el;
+      if (typeof ref === 'function') ref(el);
+      else if (ref) ref.current = el;
+    },
+    [ref],
+  );
+  useLayoutEffect(() => syncRainbowClock(svgEl.current), [rainbow]);
   const panelFill = gradient
     ? { fill: `url(#${gradientId})` }
     : rbBackground
@@ -188,7 +198,7 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
   const classes = ['ep-board', `ep-board--${status}`, rainbow?.className, className].filter(Boolean).join(' ');
   return (
     <svg
-      ref={ref}
+      ref={setRef}
       viewBox={vb}
       className={classes}
       role="img"

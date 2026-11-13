@@ -80,27 +80,27 @@ export function rainbowLayers(r?: PuzzleRainbow): ('elements' | 'background')[] 
 }
 
 /**
- * Ritardo negativo che allinea un'animazione all'orologio della pagina:
- * elementi montati in momenti diversi (board, contorno della pagina)
- * ciclano in fase.
+ * Allinea le animazioni arcobaleno di un elemento all'origine della
+ * timeline del documento: elementi montati in momenti diversi (board,
+ * contorno della pagina, board rimontata) ciclano in fase. Il tempo di
+ * partenza resta valido anche se cambiano durata o "riduci movimento".
  */
-export function rainbowDelay(period: number, now = performance.now()): string {
-  return `${-r3((now / 1000) % period)}s`;
+export function syncRainbowClock(el: Element | null): void {
+  if (!el || typeof el.getAnimations !== 'function' || typeof CSSAnimation === 'undefined') return;
+  for (const a of el.getAnimations())
+    if (a instanceof CSSAnimation && a.animationName.startsWith('ep-rainbow') && a.startTime !== 0) a.startTime = 0;
 }
 
-function layerVars(prefix: 'el' | 'bg', layer: RainbowLayer, now?: number): Record<string, string> {
-  const slow = reducedPeriod(layer.period);
+function layerVars(prefix: 'el' | 'bg', layer: RainbowLayer): Record<string, string> {
   return {
     [`--ep-rb-${prefix}-dur`]: `${layer.period}s`,
-    [`--ep-rb-${prefix}-delay`]: rainbowDelay(layer.period, now),
-    [`--ep-rb-${prefix}-dur-rm`]: `${slow}s`,
-    [`--ep-rb-${prefix}-delay-rm`]: rainbowDelay(slow, now),
+    [`--ep-rb-${prefix}-dur-rm`]: `${reducedPeriod(layer.period)}s`,
   };
 }
 
 /** Variabili CSS dei simboli in arcobaleno. */
-export function elementVars(layer: RainbowLayer, now?: number): Record<string, string> {
-  const v = layerVars('el', layer, now);
+export function elementVars(layer: RainbowLayer): Record<string, string> {
+  const v = layerVars('el', layer);
   const oklch = (phase: number) => `oklch(${RAINBOW_EL_L} ${RAINBOW_EL_C} ${hue('--ep-rb-el', phase)})`;
   for (const [c, phase] of Object.entries(RAINBOW_PHASES)) v[`--ep-c-${c}`] = oklch(phase);
   v['--ep-hexagon'] = oklch(RAINBOW_HEXAGON_PHASE);
@@ -108,8 +108,8 @@ export function elementVars(layer: RainbowLayer, now?: number): Record<string, s
 }
 
 /** Variabili CSS dello sfondo in arcobaleno: `--ep-bg-a` e (gradiente) `--ep-bg-b`. */
-export function backgroundVars(layer: RainbowLayer, bg?: PuzzleBackground, now?: number): Record<string, string> {
-  const v = layerVars('bg', layer, now);
+export function backgroundVars(layer: RainbowLayer, bg?: PuzzleBackground): Record<string, string> {
+  const v = layerVars('bg', layer);
   rainbowBackgroundColors(bg).forEach((hex, i) => {
     const b = backgroundBase(hex);
     v[i ? '--ep-bg-b' : '--ep-bg-a'] = `oklch(${r3(b.l)} ${r3(b.c)} ${hue('--ep-rb-bg', b.h)})`;
@@ -129,17 +129,17 @@ export interface RainbowStyle {
 export function rainbowStyle(
   rainbow: PuzzleRainbow | undefined,
   bg: PuzzleBackground | undefined,
-  { only, now }: { only?: 'background'; now?: number } = {},
+  { only }: { only?: 'background' } = {},
 ): RainbowStyle | null {
   const cls: string[] = [];
   let vars: Record<string, string> = {};
   if (rainbow?.elements && only !== 'background') {
     cls.push('ep-rainbow-el');
-    vars = { ...vars, ...elementVars(rainbow.elements, now) };
+    vars = { ...vars, ...elementVars(rainbow.elements) };
   }
   if (rainbow?.background) {
     cls.push('ep-rainbow-bg');
-    vars = { ...vars, ...backgroundVars(rainbow.background, bg, now) };
+    vars = { ...vars, ...backgroundVars(rainbow.background, bg) };
   }
   return cls.length ? { className: cls.join(' '), style: vars as CSSProperties } : null;
 }
