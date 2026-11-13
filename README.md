@@ -97,7 +97,11 @@ conflitti. Con `<PuzzleEditor value>` controllato, il cambio di `id` fa ricarica
 
 Un solo aspetto (bianco clinico e blu aziendale), definito come variabili CSS su `:root` in
 [`theme.css`](src/components/theme.css) (`--ep-panel`, `--ep-line`, `--ep-path`, `--ep-success`,
-`--ep-error`, `--ep-c-<colore>`, `--ep-bridge` per lo spessore del mirino del ponte…). Ogni puzzle può avere sfondo e colori propri (`background`, `palette`).
+`--ep-error`, `--ep-c-<colore>`, `--ep-bridge` per lo spessore del mirino del ponte…). Ogni puzzle può avere sfondo e colori propri (`background`, `palette`)
+e l'effetto **arcobaleno** (`rainbow`): durante il gioco i colori di simboli e sfondo ciclano, partendo
+ciascuno dal proprio colore base. Il player lo anima (`PuzzlePlayer`, prop `animateRainbow`, attiva per
+default); `PuzzleBoard` resta statica a meno di `animateRainbow`, così editor e miniature mostrano i
+colori base.
 
 ## Formato JSON
 
@@ -109,6 +113,7 @@ Un solo aspetto (bianco clinico e blu aziendale), definito come variabili CSS su
   "title": "Anomalia",
   "background": {"colors":["#eef1f5","#c9d6e8"],"angle":135},
   "palette": {"line":"#979faa","path":"#256be4","success":"#12816f"},
+  "rainbow": {"elements":{"period":8},"background":{"period":20}},
   "width": 3,
   "height": 3,
   "symmetry": "none",
@@ -171,6 +176,21 @@ percorsi almeno 3:1 (WCAG 1.4.11) e staccati dalla griglia, percorso risolto dis
 tracciamento. Gli stessi calcoli sono esportati dal motore: `contrastRatio`, `checkColor`,
 `suggestColors`, `suggestPalette`.
 
+`rainbow` (facoltativo) fa ciclare i colori durante il gioco (Prova nell'editor e player), con due livelli
+indipendenti: `elements` (quadrati, stelle, triangoli, poliomini, eliminatori, esagoni e ponti) e
+`background` (il pannello, tinta unita o gradiente, anche quello predefinito). Un livello presente è
+attivo; `period` è la durata di un ciclo completo in secondi (1–60, default 8). Griglia e percorso non
+cambiano. È solo visivo: regole, solver e validazione usano sempre il `color` base. Il colore base è il
+punto di partenza: ogni colore ha una fase fissa nel ciclo, a 40° dalle altre (rosso, arancio, giallo,
+verde, bianco, ciano, blu, nero, magenta), quindi due simboli dello stesso colore restano identici e due
+di colore diverso restano distinguibili in ogni istante. I colori sono `oklch()` con la tinta animata da
+CSS (`@property`, nessun loop JS): i simboli hanno luminosità fissa (almeno 3:1 sul pannello del tema),
+lo sfondo conserva la propria luminosità, quindi il contrasto con griglia e percorso resta stabile.
+Nell'editor il pannello Aspetto mostra quel contrasto nel punto peggiore del ciclo. Con
+`prefers-reduced-motion` il ciclo rallenta molto (almeno 120 s). Le funzioni sono esportate:
+`rainbowStyle`, `rainbowBackgroundCss`, `syncRainbowClock` (allinea più elementi animati allo stesso
+orologio), `rainbowWorstContrast`.
+
 `data` è un oggetto libero che l'editor conserva
 così com'è: utile per collegare il puzzle a stanze, eventi o porte.
 
@@ -198,6 +218,8 @@ elenca in `warnings`; solo dimensioni non valide o JSON malformato sono errori.
   con un limite di tempo di 4 s). Non fa parte del player.
 - Nuovo simbolo **ponte** (`bridge`): un incrocio che il percorso può attraversare due volte, sempre
   dritto e senza mai ripercorrere un lato. Il secondo passaggio è disegnato sopra il primo.
+- Nuovo effetto **arcobaleno** (`rainbow`): i colori di simboli e sfondo ciclano durante il gioco,
+  ciascuno dal proprio colore base; nell'editor restano fermi e un indicatore lo segnala.
 - Niente server: pubblicazione, login e lista online dell'originale sono stati tolti. Al loro posto
   ci sono file JSON e una raccolta locale nella demo.
 - Il tracciamento usa il puntatore in posizione assoluta invece del pointer lock, così funziona

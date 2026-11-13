@@ -1,0 +1,29 @@
+{
+  "format": "edenna-puzzle",
+  "version": 1,
+  "title": "Prisma",
+  "background": {"colors":["#f2eee6","#dde6f3"],"angle":135},
+  "palette": {"line":"#9f9683","path":"#1b63de","success":"#117867"},
+  "rainbow": {"elements":{"period":8},"background":{"period":24}},
+  "width": 4,
+  "height": 4,
+  "symmetry": "none",
+  "points": [
+    {"x":4,"y":0,"type":"end"},
+    {"x":2,"y":2,"type":"hexagon"},
+    {"x":0,"y":4,"type":"start"}
+  ],
+  "edges": [],
+  "cells": [
+    {"x":0,"y":0,"type":"square","color":"black"},
+    {"x":1,"y":0,"type":"square","color":"black"},
+    {"x":2,"y":0,"type":"square","color":"white"},
+    {"x":3,"y":0,"type":"square","color":"blue"},
+    {"x":0,"y":1,"type":"square","color":"blue"},
+    {"x":1,"y":1,"type":"square","color":"black"},
+    {"x":3,"y":2,"type":"square","color":"red"},
+    {"x":0,"y":3,"type":"square","color":"red"},
+    {"x":3,"y":3,"type":"square","color":"white"}
+  ]
+}
+
