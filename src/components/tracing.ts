@@ -6,11 +6,13 @@ import {
   type PuzzleIndex,
   directionBetween,
   edgeBetween,
+  edgeRefKey,
   endDirection,
   getPoint,
   inPointBounds,
   isEdgeGap,
   isEdgeTraversable,
+  maxPasses,
   neighbor,
   pointKey,
   reflectDirection,
@@ -70,9 +72,18 @@ export function tracePaths(idx: PuzzleIndex, s: TraceState): Path[] {
 /** Massimo avanzamento consentito da `from` verso `dir`. */
 function reach(idx: PuzzleIndex, s: TraceState, from: Coord, dir: Direction): number {
   const sym = idx.puzzle.symmetry;
-  const occupied = new Set(s.path.map((c) => pointKey(c.x, c.y)));
   const mirror = (c: Coord) => reflectPoint(sym, idx.puzzle.width, idx.puzzle.height, c);
-  if (sym !== 'none') s.path.forEach((c) => occupied.add(pointKey(mirror(c).x, mirror(c).y)));
+  // Passaggi per punto (fino a 2 sui ponti) e lati già percorsi.
+  const passes = new Map<string, number>();
+  const used = new Set<string>();
+  const add = (path: Coord[]) =>
+    path.forEach((c, i) => {
+      const k = pointKey(c.x, c.y);
+      passes.set(k, (passes.get(k) ?? 0) + 1);
+      if (i > 0) used.add(edgeRefKey(edgeBetween(path[i - 1], c)));
+    });
+  add(s.path);
+  if (sym !== 'none') add(s.path.map(mirror));
 
   const single = (f: Coord, d: Direction): number => {
     if (getPoint(idx, f)?.type === 'end' && endDirection(idx, f) === d) return EXIT_LENGTH;
@@ -80,8 +91,8 @@ function reach(idx: PuzzleIndex, s: TraceState, from: Coord, dir: Direction): nu
     if (!inPointBounds(idx.puzzle, n)) return 0;
     const e = edgeBetween(f, n);
     if (isEdgeGap(idx, e)) return GAP_REACH;
-    if (!isEdgeTraversable(idx, e)) return 0;
-    if (occupied.has(pointKey(n.x, n.y))) return COLLIDE_REACH;
+    if (!isEdgeTraversable(idx, e) || used.has(edgeRefKey(e))) return 0;
+    if ((passes.get(pointKey(n.x, n.y)) ?? 0) >= maxPasses(idx, n)) return COLLIDE_REACH;
     return 1;
   };
 

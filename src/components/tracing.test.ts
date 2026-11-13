@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createPuzzle, indexPuzzle, setSymmetry, type Coord } from '../engine';
-import { CAPTURE_RADIUS, distanceToGrid, headPosition, moveTrace, startTrace, type TraceState } from './tracing';
+import { createPuzzle, indexPuzzle, setPoint, setSymmetry, type Coord, type Direction } from '../engine';
+import { CAPTURE_RADIUS, distanceToGrid, headPosition, moveTrace, startTrace, stepTrace, type TraceState } from './tracing';
 
 /** Simula il puntatore lungo una serie di punti, a piccoli passi. */
 function drive(idx: ReturnType<typeof indexPuzzle>, start: Coord, waypoints: Coord[], step = 0.02) {
@@ -108,5 +108,69 @@ describe('tracciamento con il puntatore', () => {
 
   it('il percorso segue ancora il puntatore vicino all’uscita', () => {
     expect(distanceToGrid(idx.puzzle, { x: 4.18, y: 0.05 })).toBeLessThan(CAPTURE_RADIUS);
+  });
+});
+
+describe('ponte', () => {
+  const bridged = setPoint(createPuzzle(3, 3), { x: 1, y: 1 }, { type: 'bridge' });
+  const idx = indexPuzzle(bridged);
+  const keys = (s: TraceState) => s.path.map((c) => `${c.x}${c.y}`).join(' ');
+  const steps = (dirs: Direction[], s = startTrace({ x: 0, y: 3 })) => dirs.reduce((acc, d) => stepTrace(idx, acc, d), s);
+  /** Fino al primo passaggio dritto sul ponte, poi giro attorno alla cella (1,1). */
+  const LOOP: Coord[] = [
+    { x: 0, y: 1 },
+    { x: 2, y: 1 },
+    { x: 2, y: 2 },
+    { x: 1, y: 2 },
+  ];
+
+  it('col puntatore: secondo passaggio dritto, poi oltre', () => {
+    const r = drive(idx, { x: 0, y: 3 }, [...LOOP, { x: 1, y: 1 }, { x: 1, y: 0 }]);
+    expect(keys(r.s)).toBe('03 02 01 11 21 22 12 11 10');
+    expect(r.maxJump).toBeLessThan(0.1);
+  });
+
+  it('col puntatore: curva/curva', () => {
+    const r = drive(idx, { x: 0, y: 3 }, [
+      { x: 0, y: 1 },
+      { x: 1, y: 1 },
+      { x: 1, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2, y: 1 },
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+    ]);
+    expect(keys(r.s)).toBe('03 02 01 11 10 20 21 11 12');
+  });
+
+  it('lato già percorso e terzo passaggio non consentiti', () => {
+    // Secondo passaggio: dal ponte non si torna sul lato del primo (verso sinistra).
+    const r = drive(idx, { x: 0, y: 3 }, [...LOOP, { x: 1, y: 1 }, { x: 0.5, y: 1 }]);
+    expect(keys(r.s)).toBe('03 02 01 11 21 22 12 11');
+    expect(headPosition(r.s)).toEqual({ x: 1, y: 1 });
+    // Su un punto normale già visitato ci si ferma prima, come sempre.
+    const s = steps(['up', 'up', 'right', 'right', 'down', 'left', 'left']);
+    expect(keys(s)).toBe('03 02 01 11 21 22 12');
+    expect(s.dir).toBe('left');
+    expect(s.t).toBeGreaterThan(0);
+    expect(s.t).toBeLessThan(1);
+  });
+
+  it('retromarcia dal secondo passaggio libera il lato', () => {
+    const r = drive(idx, { x: 0, y: 3 }, [...LOOP, { x: 1, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 2 }]);
+    expect(keys(r.s)).toBe('03 02 01 11 21 22');
+  });
+
+  it('da tastiera', () => {
+    let s = steps(['up', 'up', 'right', 'right', 'down', 'left', 'up', 'up']);
+    expect(keys(s)).toBe('03 02 01 11 21 22 12 11 10');
+    // Indietro oltre il secondo passaggio, poi di nuovo avanti.
+    s = steps(['down', 'down'], s);
+    expect(keys(s)).toBe('03 02 01 11 21 22 12');
+    s = steps(['up'], s);
+    expect(keys(s)).toBe('03 02 01 11 21 22 12 11');
+    // Dal ponte: sinistra (lato del primo passaggio) e destra non si percorrono.
+    expect(keys(stepTrace(idx, s, 'left'))).toBe(keys(s));
+    expect(keys(stepTrace(idx, s, 'right'))).toBe(keys(s));
   });
 });
