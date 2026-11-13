@@ -222,9 +222,9 @@ Angoli morbidi ma contenuti, tra 4px e 12px. Pulsanti e strumenti a 8px (`md`), 
 - **Indicatori di contrasto:** pillole verde, ambra o rossa chiare con testo scuro dello stesso tono.
 
 ### Arcobaleno
-- **In gioco (Prova e Gioca):** simboli, esagoni e ponti ciclano in OKLCH a luminosità fissa; ogni colore base parte da una fase propria, a 40° dalle altre. Lo sfondo ruota solo la tinta e conserva la luminosità, quindi il contrasto con griglia e percorso resta stabile. Griglia e percorso non cambiano mai.
-- **In Modifica e nelle miniature** i colori restano quelli base. Lo segnalano un anello sottile a ruota cromatica (2.5 unità) attorno agli elementi coinvolti, un bordo di 3 unità sul pannello se cicla lo sfondo, il segno nella scheda Aspetto, un badge «Arcobaleno» nella barra accanto a Modifica/Prova (porta alle impostazioni) e il segno nell'angolo della miniatura.
-- **Impostazioni (Aspetto → Arcobaleno):** una casella per livello e, se attiva, il cursore «Ciclo completo» (1–60 s, valore in mono), più le pillole di contrasto nel punto peggiore del ciclo.
+- **In gioco (Prova e Gioca):** simboli, esagoni e ponti ciclano in OKLCH a luminosità fissa; ogni colore base parte da una fase propria, a 36° dalle altre; esagoni e ponti hanno una fase tutta loro, diversa da quella di ogni colore. Lo sfondo ruota solo la tinta e conserva la luminosità, quindi il contrasto con griglia e percorso resta stabile. Griglia e percorso non cambiano mai.
+- **In Modifica e nelle miniature** i colori restano quelli base e la board non porta alcun segno: la scheda Aspetto ha il segno a ruota, la barra accanto a Modifica/Prova ha il badge «Arcobaleno» con scritto su cosa è applicato («elementi», «sfondo» o «elementi e sfondo»; porta alle impostazioni) e la miniatura ha il segno nell'angolo.
+- **Impostazioni (Aspetto → Arcobaleno):** una casella per livello e, se attiva, il cursore «Ciclo completo» (1–16 s, valore in mono), più le pillole di contrasto nel punto peggiore del ciclo.
 
 ### Board
 - Pannello clinico con bordo sottile, griglia grigio-azzurra, partenze piene, esagono scuro, ponte con staffe quadrate. Un simbolo in errore lampeggia con un alone rosso (4 cicli a 0.4s); uno eliminato scende a 0.22 di opacità.

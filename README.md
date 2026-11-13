@@ -113,7 +113,7 @@ colori base.
   "title": "Anomalia",
   "background": {"colors":["#eef1f5","#c9d6e8"],"angle":135},
   "palette": {"line":"#979faa","path":"#256be4","success":"#12816f"},
-  "rainbow": {"elements":{"period":8},"background":{"period":20}},
+  "rainbow": {"elements":{"period":8},"background":{"period":12}},
   "width": 3,
   "height": 3,
   "symmetry": "none",
@@ -179,11 +179,12 @@ tracciamento. Gli stessi calcoli sono esportati dal motore: `contrastRatio`, `ch
 `rainbow` (facoltativo) fa ciclare i colori durante il gioco (Prova nell'editor e player), con due livelli
 indipendenti: `elements` (quadrati, stelle, triangoli, poliomini, eliminatori, esagoni e ponti) e
 `background` (il pannello, tinta unita o gradiente, anche quello predefinito). Un livello presente è
-attivo; `period` è la durata di un ciclo completo in secondi (1–60, default 8). Griglia e percorso non
+attivo; `period` è la durata di un ciclo completo in secondi (1–16, default 8). Griglia e percorso non
 cambiano. È solo visivo: regole, solver e validazione usano sempre il `color` base. Il colore base è il
-punto di partenza: ogni colore ha una fase fissa nel ciclo, a 40° dalle altre (rosso, arancio, giallo,
-verde, bianco, ciano, blu, nero, magenta), quindi due simboli dello stesso colore restano identici e due
-di colore diverso restano distinguibili in ogni istante. I colori sono `oklch()` con la tinta animata da
+punto di partenza: ogni colore ha una fase fissa nel ciclo, a 36° dalle altre (rosso, arancio, giallo,
+bianco, verde, ciano, nero, blu, magenta; esagoni e ponti hanno una fase tutta loro, fra blu e magenta),
+quindi due simboli dello stesso colore restano identici e due di colore diverso restano distinguibili in
+ogni istante. I colori sono `oklch()` con la tinta animata da
 CSS (`@property`, nessun loop JS): i simboli hanno luminosità fissa (almeno 3:1 sul pannello del tema),
 lo sfondo conserva la propria luminosità, quindi il contrasto con griglia e percorso resta stabile.
 Nell'editor il pannello Aspetto mostra quel contrasto nel punto peggiore del ciclo. Con

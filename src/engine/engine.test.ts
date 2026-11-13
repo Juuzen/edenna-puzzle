@@ -409,11 +409,11 @@ describe('palette dei colori', () => {
 
 describe('arcobaleno', () => {
   it('andata e ritorno', () => {
-    const p = { ...base(), rainbow: { background: { period: 20 }, elements: { period: 4 } } };
+    const p = { ...base(), rainbow: { background: { period: 12 }, elements: { period: 4 } } };
     const json = serializePuzzle(p);
     const { puzzle, warnings } = parsePuzzle(json);
     expect(warnings).toEqual([]);
-    expect(puzzle.rainbow).toEqual({ elements: { period: 4 }, background: { period: 20 } });
+    expect(puzzle.rainbow).toEqual({ elements: { period: 4 }, background: { period: 12 } });
     // Ordine stabile: prima gli elementi.
     expect(Object.keys(JSON.parse(json).rainbow)).toEqual(['elements', 'background']);
   });
@@ -423,7 +423,7 @@ describe('arcobaleno', () => {
     expect(r.puzzle.rainbow).toEqual({ elements: { period: 1 }, background: { period: 8 } });
     expect(r.warnings.filter((w) => w.startsWith('rainbow'))).toHaveLength(3);
     expect(parsePuzzle({ width: 2, height: 2, rainbow: { elements: {} } }).puzzle.rainbow).toEqual({ elements: { period: 8 } });
-    expect(parsePuzzle({ width: 2, height: 2, rainbow: { elements: { period: 999 } } }).puzzle.rainbow?.elements?.period).toBe(60);
+    expect(parsePuzzle({ width: 2, height: 2, rainbow: { elements: { period: 999 } } }).puzzle.rainbow?.elements?.period).toBe(16);
   });
 
   it('vuoto o disattivato → omesso; tipo errato → avviso', () => {

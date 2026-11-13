@@ -103,7 +103,7 @@ export function parsePalette(raw: unknown, warnings: string[] = []): PuzzlePalet
 }
 
 export const RAINBOW_PERIOD_MIN = 1;
-export const RAINBOW_PERIOD_MAX = 60;
+export const RAINBOW_PERIOD_MAX = 16;
 export const RAINBOW_PERIOD_DEFAULT = 8;
 const RAINBOW_KEYS = ['elements', 'background'] as const;
 

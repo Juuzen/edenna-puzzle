@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { COLORS, contrastRatio, hexToOklch } from '../engine';
 import {
   DEFAULT_PANEL,
+  RAINBOW_HEXAGON_PHASE,
   RAINBOW_PHASES,
+  RAINBOW_PHASE_STEP,
   backgroundColorAt,
   elementColorAt,
   rainbowLayers,
@@ -29,17 +31,19 @@ const dist = (a: number, b: number) => {
 };
 
 describe('fasi degli elementi', () => {
-  it('una fase per colore, tutte distanti almeno 40°', () => {
+  it('una fase per colore più una per esagoni e ponti, tutte distanti almeno 36°', () => {
     expect(Object.keys(RAINBOW_PHASES).sort()).toEqual([...COLORS].sort());
-    const phases = Object.values(RAINBOW_PHASES);
+    const phases = [...Object.values(RAINBOW_PHASES), RAINBOW_HEXAGON_PHASE];
+    expect(new Set(phases).size).toBe(phases.length);
     for (let i = 0; i < phases.length; i++)
-      for (let j = i + 1; j < phases.length; j++) expect(dist(phases[i], phases[j])).toBeGreaterThanOrEqual(40);
+      for (let j = i + 1; j < phases.length; j++)
+        expect(dist(phases[i], phases[j])).toBeGreaterThanOrEqual(RAINBOW_PHASE_STEP);
   });
 
   it('i colori con una tinta partono vicino alla propria', () => {
     for (const [c, hex] of Object.entries(THEME)) {
       if (c === 'black' || c === 'white') continue;
-      expect(dist(RAINBOW_PHASES[c as keyof typeof RAINBOW_PHASES], hexToOklch(hex).h)).toBeLessThanOrEqual(25);
+      expect(dist(RAINBOW_PHASES[c as keyof typeof RAINBOW_PHASES], hexToOklch(hex).h)).toBeLessThanOrEqual(15);
     }
   });
 
@@ -69,7 +73,9 @@ describe('stile e orologio', () => {
     expect(el.className).toBe('ep-rainbow-el');
     const vars = el.style as Record<string, string>;
     expect(vars['--ep-c-red']).toContain('var(--ep-rb-el)');
-    expect(vars['--ep-hexagon']).toBe(vars['--ep-c-black']);
+    // Esagoni e ponti non condividono il punto di partenza con nessun colore.
+    for (const c of COLORS) expect(vars['--ep-hexagon']).not.toBe(vars[`--ep-c-${c}`]);
+    expect(vars['--ep-hexagon']).toContain(`+ ${RAINBOW_HEXAGON_PHASE}deg`);
     expect(vars['--ep-bg-a']).toBeUndefined();
     const both = rainbowStyle({ elements: { period: 5 }, background: { period: 9 } }, { colors: ['#000000', '#ffffff'] })!;
     expect(both.className).toBe('ep-rainbow-el ep-rainbow-bg');

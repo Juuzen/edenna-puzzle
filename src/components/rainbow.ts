@@ -4,7 +4,7 @@
  * (`--ep-rb-el`, `--ep-rb-bg`, vedi theme.css): nessun loop JS.
  *
  * - Elementi: ogni colore base ha una fase fissa. Stessa base → stesso colore
- *   a ogni istante; basi diverse restano sempre distanti almeno 40°.
+ *   a ogni istante; basi diverse restano sempre distanti almeno 36°.
  * - Sfondo: ruota solo la tinta, luminosità conservata (OKLCH), così il
  *   contrasto con griglia e percorsi resta stabile.
  */
@@ -19,25 +19,28 @@ import {
   oklchToHex,
 } from '../engine';
 
+/** Distanza minima fra le fasi di partenza, in gradi (10 posizioni su 360°). */
+export const RAINBOW_PHASE_STEP = 36;
+
 /**
- * Tinta OKLCH di partenza di ogni colore. Passi di 40° nell'ordine delle
- * tinte reali (rosso ≈ 20°, arancio ≈ 54°, giallo ≈ 85°, verde ≈ 149°,
- * ciano ≈ 209°, blu ≈ 263°, magenta ≈ 346°); bianco e nero, che una tinta
- * non ce l'hanno, occupano i due posti liberi.
+ * Tinta OKLCH di partenza di ogni colore: 10 posizioni a passi di 36°, nell'ordine
+ * delle tinte reali (rosso ≈ 20°, arancio ≈ 54°, giallo ≈ 85°, verde ≈ 149°,
+ * ciano ≈ 209°, blu ≈ 263°, magenta ≈ 346°), ognuno a meno di 15° dalla propria.
+ * Bianco e nero, che una tinta non ce l'hanno, occupano due posti liberi.
  */
 export const RAINBOW_PHASES: Record<Color, number> = {
-  red: 20,
-  orange: 60,
-  yellow: 100,
-  green: 140,
-  white: 180,
-  cyan: 220,
-  blue: 260,
-  black: 300,
-  magenta: 340,
+  red: 14,
+  orange: 50,
+  yellow: 86,
+  white: 122,
+  green: 158,
+  cyan: 194,
+  black: 230,
+  blue: 266,
+  magenta: 338,
 };
-/** Esagoni e ponti: scuri come il nero, ne condividono la fase. */
-export const RAINBOW_HEXAGON_PHASE = RAINBOW_PHASES.black;
+/** Esagoni e ponti hanno un punto di partenza tutto loro, diverso da ogni colore. */
+export const RAINBOW_HEXAGON_PHASE = 302;
 
 /** Luminosità e croma dei simboli in arcobaleno (≥ 3:1 sul pannello del tema). */
 export const RAINBOW_EL_L = 0.58;

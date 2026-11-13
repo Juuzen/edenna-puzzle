@@ -510,5 +510,6 @@
   font-size: 12px;
   cursor: pointer;
 }
+.ep-rb-badge__what { color: var(--ed-text); }
 .ep-rb-badge:hover { color: var(--ed-text); border-color: #dcd8cd; }
 .ep-rb-badge:focus-visible { outline: 2px solid var(--ed-focus); outline-offset: 2px; }

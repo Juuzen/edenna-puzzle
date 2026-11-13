@@ -70,7 +70,7 @@ import { EXIT_LENGTH } from './tracing';
 import { backgroundCss } from './background';
 import { downloadText, slugify } from './collectionOps';
 import { rainbowLayers, rainbowWorstContrast } from './rainbow';
-import { RainbowBoardMarks, RainbowMark } from './RainbowMarks';
+import { RainbowMark } from './RainbowMarks';
 
 export interface PuzzleEditorProps {
   /** Puzzle iniziale (non controllato). */
@@ -434,7 +434,7 @@ function BackgroundControls({
 
 const RAINBOW_ROWS: { key: keyof PuzzleRainbow; label: string; period: number }[] = [
   { key: 'elements', label: 'Elementi di gioco', period: 8 },
-  { key: 'background', label: 'Sfondo', period: 20 },
+  { key: 'background', label: 'Sfondo', period: 12 },
 ];
 
 const contrastLevel = (role: ColorRole, ratio: number): ContrastLevel =>
@@ -1294,7 +1294,7 @@ export function PuzzleEditor({
             >
               <RainbowMark size={12} />
               Arcobaleno
-              <span className="ep-sr">: {rbText}</span>
+              <span className="ep-rb-badge__what">{rbText}</span>
             </button>
           )}
           <div className="ep-toolbar__spacer" />
@@ -1365,12 +1365,7 @@ export function PuzzleEditor({
               paths={shownSolution}
               status={shownSolution ? 'success' : 'idle'}
               eliminated={shownEliminated}
-              overlay={
-                <>
-                  <RainbowBoardMarks puzzle={puzzle} />
-                  {overlay}
-                </>
-              }
+              overlay={overlay}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={endPaint}

@@ -4,7 +4,7 @@
   "title": "Prisma",
   "background": {"colors":["#f2eee6","#dde6f3"],"angle":135},
   "palette": {"line":"#9f9683","path":"#1b63de","success":"#117867"},
-  "rainbow": {"elements":{"period":8},"background":{"period":24}},
+  "rainbow": {"elements":{"period":8},"background":{"period":12}},
   "width": 4,
   "height": 4,
   "symmetry": "none",
