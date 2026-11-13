@@ -44,6 +44,8 @@ export interface PuzzlePlayerProps {
   captureRadius?: number;
   /** Durata (ms) della dissolvenza quando un percorso viene abbandonato. Default: 400. */
   cancelFadeMs?: number;
+  /** Fa ciclare i colori dei puzzle con `rainbow`. Default: true. */
+  animateRainbow?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -72,6 +74,7 @@ export function PuzzlePlayer({
   failureDisplayMs = 1600,
   captureRadius = CAPTURE_RADIUS,
   cancelFadeMs = 400,
+  animateRainbow = true,
   className,
   style,
 }: PuzzlePlayerProps) {
@@ -267,6 +270,7 @@ export function PuzzlePlayer({
         status={status}
         errors={errors}
         eliminated={eliminated}
+        animateRainbow={animateRainbow}
         pointer={trace ? cursor : null}
         pointerIdle={!!cursor && distanceToGrid(puzzle, cursor) > captureRadius}
         tabIndex={disabled ? -1 : 0}

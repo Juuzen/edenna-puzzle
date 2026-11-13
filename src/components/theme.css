@@ -199,3 +199,64 @@
   .ep-board--failure .ep-path,
   .ep-board--cancelled .ep-path { animation: none; }
 }
+
+/* -------------------------------------------------------------- rainbow */
+
+/*
+ * Arcobaleno (solo in gioco): rainbow.ts ridefinisce --ep-c-*, --ep-hexagon e
+ * --ep-bg-a/b come oklch() con la tinta legata a questi angoli; qui li si
+ * anima. Il ritardo negativo allinea le animazioni all'orologio della pagina.
+ */
+@property --ep-rb-el {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+@property --ep-rb-bg {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+@keyframes ep-rainbow-el {
+  from { --ep-rb-el: 0deg; }
+  to { --ep-rb-el: 360deg; }
+}
+@keyframes ep-rainbow-bg {
+  from { --ep-rb-bg: 0deg; }
+  to { --ep-rb-bg: 360deg; }
+}
+.ep-rainbow-el {
+  animation: ep-rainbow-el var(--ep-rb-el-dur) linear var(--ep-rb-el-delay) infinite;
+}
+.ep-rainbow-bg {
+  animation: ep-rainbow-bg var(--ep-rb-bg-dur) linear var(--ep-rb-bg-delay) infinite;
+}
+.ep-rainbow-el.ep-rainbow-bg {
+  animation:
+    ep-rainbow-el var(--ep-rb-el-dur) linear var(--ep-rb-el-delay) infinite,
+    ep-rainbow-bg var(--ep-rb-bg-dur) linear var(--ep-rb-bg-delay) infinite;
+}
+.ep-rainbow-bg .ep-panel {
+  fill: var(--ep-bg-a);
+}
+/* In arcobaleno il bianco diventa un colore: il contorno non serve più. */
+.ep-rainbow-el .ep-white,
+.ep-rainbow-el .ep-white-under {
+  stroke: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Il ciclo continua, ma molto più lento. */
+  .ep-rainbow-el {
+    animation-duration: var(--ep-rb-el-dur-rm);
+    animation-delay: var(--ep-rb-el-delay-rm);
+  }
+  .ep-rainbow-bg {
+    animation-duration: var(--ep-rb-bg-dur-rm);
+    animation-delay: var(--ep-rb-bg-delay-rm);
+  }
+  .ep-rainbow-el.ep-rainbow-bg {
+    animation-duration: var(--ep-rb-el-dur-rm), var(--ep-rb-bg-dur-rm);
+    animation-delay: var(--ep-rb-el-delay-rm), var(--ep-rb-bg-delay-rm);
+  }
+}

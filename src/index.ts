@@ -21,6 +21,14 @@ export type { ImportDialogProps, ImportSource } from './components/ImportDialog'
 export * from './components/collectionOps';
 export { gradientLine, backgroundCss, type GradientLine } from './components/background';
 export {
+  RAINBOW_PHASES,
+  rainbowStyle,
+  rainbowBackgroundCss,
+  rainbowLayers,
+  rainbowWorstContrast,
+  type RainbowStyle,
+} from './components/rainbow';
+export {
   type TraceState,
   startTrace,
   moveTrace,

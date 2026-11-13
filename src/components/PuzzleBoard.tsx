@@ -1,5 +1,6 @@
 import { forwardRef, useId, useMemo, type ReactNode, type SVGProps } from 'react';
 import { gradientLine, paletteCssVars } from './background';
+import { rainbowStyle } from './rainbow';
 import {
   DEFAULT_BACKGROUND_ANGLE,
   type Coord,
@@ -36,6 +37,11 @@ export interface PuzzleBoardProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
   pointerIdle?: boolean;
   /** Testo alternativo per screen reader. */
   label?: string;
+  /**
+   * Fa ciclare i colori se il puzzle ha `rainbow` (prova e gioco). Senza,
+   * il disegno resta statico con i colori base (editor, miniature).
+   */
+  animateRainbow?: boolean;
 }
 
 const toSvg = (c: Coord) => `${c.x * U},${c.y * U}`;
@@ -54,7 +60,21 @@ export function clientToGrid(svg: SVGSVGElement, clientX: number, clientY: numbe
  * visualizzatore sia dall'editor.
  */
 export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function PuzzleBoard(
-  { puzzle, trace, paths, status = 'idle', errors, eliminated, overlay, pointer: cursor, pointerIdle, label, className, ...rest },
+  {
+    puzzle,
+    trace,
+    paths,
+    status = 'idle',
+    errors,
+    eliminated,
+    overlay,
+    pointer: cursor,
+    pointerIdle,
+    label,
+    animateRainbow,
+    className,
+    ...rest
+  },
   ref,
 ) {
   const idx = indexPuzzle(puzzle);
@@ -140,16 +160,37 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
           line: gradientLine(panel.x, panel.y, panel.w, panel.h, bg.angle ?? DEFAULT_BACKGROUND_ANGLE),
         }
       : null;
-  const panelFill = gradient ? { fill: `url(#${gradientId})` } : bg ? { fill: bg.colors[0] } : undefined;
+  // Arcobaleno: variabili oklch() animate in CSS. L'orologio si legge una
+  // volta per configurazione, così i ri-render non fanno saltare il ciclo.
+  const rbEl = animateRainbow ? puzzle.rainbow?.elements?.period : undefined;
+  const rbBg = animateRainbow ? puzzle.rainbow?.background?.period : undefined;
+  const rainbow = useMemo(
+    () =>
+      rainbowStyle(
+        { ...(rbEl ? { elements: { period: rbEl } } : {}), ...(rbBg ? { background: { period: rbBg } } : {}) },
+        bg,
+      ),
+    [rbEl, rbBg, bg?.colors[0], bg?.colors[1]],
+  );
+  const rbBackground = !!rbBg;
+  const panelFill = gradient
+    ? { fill: `url(#${gradientId})` }
+    : rbBackground
+      ? { fill: 'var(--ep-bg-a)' }
+      : bg
+        ? { fill: bg.colors[0] }
+        : undefined;
   // Colori di griglia e percorsi: sovrascrivono le variabili del tema, ma
   // solo se il puzzle ha anche uno sfondo proprio.
   const paletteVars = bg ? paletteCssVars(puzzle.palette) : undefined;
-  const style = paletteVars ? { ...paletteVars, ...rest.style } : rest.style;
+  const style =
+    paletteVars || rainbow ? { ...paletteVars, ...rainbow?.style, ...rest.style } : rest.style;
+  const classes = ['ep-board', `ep-board--${status}`, rainbow?.className, className].filter(Boolean).join(' ');
   return (
     <svg
       ref={ref}
       viewBox={vb}
-      className={`ep-board ep-board--${status}${className ? ` ${className}` : ''}`}
+      className={classes}
       role="img"
       aria-label={label ?? puzzle.title ?? 'Puzzle'}
       {...rest}
@@ -158,8 +199,8 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
       {gradient && (
         <defs>
           <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" {...gradient.line}>
-            <stop offset="0" stopColor={gradient.from} />
-            <stop offset="1" stopColor={gradient.to} />
+            <stop offset="0" style={{ stopColor: rbBackground ? 'var(--ep-bg-a)' : gradient.from }} />
+            <stop offset="1" style={{ stopColor: rbBackground ? 'var(--ep-bg-b)' : gradient.to }} />
           </linearGradient>
         </defs>
       )}
