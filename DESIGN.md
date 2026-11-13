@@ -159,6 +159,7 @@ Grigio caldo e carta per gli strumenti, bianco clinico e blu per la board, nove 
 
 ### Named Rules
 **The Two Worlds Rule.** Strumenti caldi, board fredda. Il giallo non entra nella board e il blu non entra negli strumenti.
+**The Rainbow Mark Rule.** L'unico multicolore fuori dalla board è il segno a ruota cromatica dell'arcobaleno: dice solo «qui c'è l'arcobaleno», è sempre piccolo (9–12px) e non indica mai uno stato attivo. I suoi dodici settori sono i colori veri del ciclo (OKLCH, L 0.58, C 0.16), non una decorazione.
 **The One Signal Rule.** Il giallo indica una sola cosa per contesto: nell'area di lavoro lo strumento attivo, nell'intestazione la scheda corrente (come barra sottile). La riga attiva della raccolta, l'interruttore JSON e le schede Costruisci/Aspetto usano il neutro. Se due cose sulla stessa schermata sono gialle, una non dovrebbe esserlo.
 
 ## Typography
@@ -220,6 +221,11 @@ Angoli morbidi ma contenuti, tra 4px e 12px. Pulsanti e strumenti a 8px (`md`), 
 - Bordo sabbia, raggio 7px, focus con contorno di 2px in inchiostro (`ed-focus`). JSON in mono.
 - **Indicatori di contrasto:** pillole verde, ambra o rossa chiare con testo scuro dello stesso tono.
 
+### Arcobaleno
+- **In gioco (Prova e Gioca):** simboli, esagoni e ponti ciclano in OKLCH a luminosità fissa; ogni colore base parte da una fase propria, a 40° dalle altre. Lo sfondo ruota solo la tinta e conserva la luminosità, quindi il contrasto con griglia e percorso resta stabile. Griglia e percorso non cambiano mai.
+- **In Modifica e nelle miniature** i colori restano quelli base. Lo segnalano un anello sottile a ruota cromatica (2.5 unità) attorno agli elementi coinvolti, un bordo di 3 unità sul pannello se cicla lo sfondo, il segno nella scheda Aspetto, un badge «Arcobaleno» nella barra accanto a Modifica/Prova (porta alle impostazioni) e il segno nell'angolo della miniatura.
+- **Impostazioni (Aspetto → Arcobaleno):** una casella per livello e, se attiva, il cursore «Ciclo completo» (1–60 s, valore in mono), più le pillole di contrasto nel punto peggiore del ciclo.
+
 ### Board
 - Pannello clinico con bordo sottile, griglia grigio-azzurra, partenze piene, esagono scuro, ponte con staffe quadrate. Un simbolo in errore lampeggia con un alone rosso (4 cicli a 0.4s); uno eliminato scende a 0.22 di opacità.
 
@@ -229,7 +235,7 @@ Angoli morbidi ma contenuti, tra 4px e 12px. Pulsanti e strumenti a 8px (`md`), 
 - **Do** tenere il giallo per lo strumento attivo e l'azione primaria; per il focus usa l'inchiostro.
 - **Do** usare i token `--ed-*` fuori dalla board e `--ep-*` dentro.
 - **Do** dare ai simboli bianchi un contorno `#9aa6b5` sul pannello chiaro.
-- **Do** rispettare `prefers-reduced-motion`: i lampeggi diventano uno stato fisso.
+- **Do** rispettare `prefers-reduced-motion`: i lampeggi diventano uno stato fisso; l'arcobaleno non si ferma ma rallenta molto (ciclo di almeno 120 s).
 - **Do** usare IBM Plex Mono per JSON e valori che l'utente può modificare.
 
 ### Don't:

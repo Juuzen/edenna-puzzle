@@ -452,6 +452,7 @@
 
 /* Puntatore impreciso (touch): bersagli di almeno ~40px, senza allargare la vista a mouse. */
 @media (pointer: coarse) {
+  .ep-rb-badge { min-height: 36px; }
   .ep-swatches { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; }
   .ep-shape { width: 200px; gap: 4px; }
   .ep-presets button { width: 44px; height: 44px; }
@@ -460,3 +461,54 @@
   .ep-check { min-height: 40px; }
 }
 
+/* ------------------------------------------------------------ arcobaleno */
+
+/*
+ * Il segno a ruota è l'unico elemento multicolore fuori dalla board: dice
+ * "qui c'è l'arcobaleno", sempre piccolo (≤ 12px) e mai come stato attivo.
+ */
+.ep-rainbow-mark { display: inline-block; flex: none; vertical-align: -1px; }
+.ep-rainbow-mark__hub { fill: var(--ed-surface, #ffffff); }
+.ep-tab__mark { margin-left: 6px; }
+
+.ep-rb { display: flex; flex-direction: column; gap: 10px; }
+.ep-rb__layer { display: flex; flex-direction: column; gap: 6px; }
+/* Allineato al testo della casella, non alla casella. */
+.ep-rb__speed { padding-left: 21px; }
+.ep-rb__value {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ed-text);
+}
+.ep-field > .ep-rb__scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-top: -2px;
+}
+.ep-rb__contrast > span:first-child { flex-basis: 100%; }
+.ep-rb__contrast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ed-muted);
+}
+
+/* Badge nella barra, accanto a Modifica/Prova: in Modifica l'arcobaleno non si anima. */
+.ep-rb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 7px;
+  border: 1px solid var(--ed-border);
+  border-radius: 10px;
+  background: var(--ed-surface);
+  color: var(--ed-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ep-rb-badge:hover { color: var(--ed-text); border-color: #dcd8cd; }
+.ep-rb-badge:focus-visible { outline: 2px solid var(--ed-focus); outline-offset: 2px; }

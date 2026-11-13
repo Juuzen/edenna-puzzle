@@ -22,7 +22,8 @@
     "motion": [
       { "name": "tool-hover", "value": "0.12s", "purpose": "Sfondo e bordo degli strumenti." },
       { "name": "path-vanish", "value": "0.4s ease-out", "purpose": "Dissolvenza di un percorso annullato." },
-      { "name": "symbol-blink", "value": "0.4s ease-in-out x4 alternate", "purpose": "Alone dei simboli in errore." }
+      { "name": "symbol-blink", "value": "0.4s ease-in-out x4 alternate", "purpose": "Alone dei simboli in errore." },
+      { "name": "rainbow-cycle", "value": "linear infinite, 1–60s per ciclo (riduci movimento: max(120s, 8×))", "purpose": "Tinta di simboli e sfondo con l'arcobaleno attivo, solo in Prova e Gioca." }
     ],
     "breakpoints": [
       { "name": "library", "value": "760px" },
@@ -75,6 +76,14 @@
       "description": "Pillola di stato per il contrasto dei colori.",
       "html": "<span class=\"ds-pill ds-pill-good\">Buono</span> <span class=\"ds-pill ds-pill-low\">Basso</span> <span class=\"ds-pill ds-pill-bad\">Insufficiente</span>",
       "css": ".ds-pill{display:inline-block;font:500 12px 'IBM Plex Sans',system-ui,sans-serif;padding:2px 8px;border-radius:10px}.ds-pill-good{background:#dcefe5;color:#1d7f5a}.ds-pill-low{background:#fbeccb;color:#7a5600}.ds-pill-bad{background:#f6dcdf;color:#b8323f}"
+    },
+    {
+      "name": "Segno arcobaleno",
+      "kind": "badge",
+      "refersTo": "RainbowMark, .ep-rb-badge",
+      "description": "Badge nella barra quando l'arcobaleno è attivo: ruota cromatica di 12px e testo muto. Porta alle impostazioni.",
+      "html": "<button class=\"ds-rb-badge\"><span class=\"ds-rb-mark\" aria-hidden=\"true\"></span>Arcobaleno</button>",
+      "css": ".ds-rb-badge{display:inline-flex;align-items:center;gap:6px;font:400 12px 'IBM Plex Sans',system-ui,sans-serif;color:#67635a;background:#fff;border:1px solid #e2dfd6;padding:3px 10px 3px 7px;border-radius:10px;cursor:pointer}.ds-rb-badge:hover{color:#23221f;border-color:#dcd8cd}.ds-rb-badge:focus-visible{outline:2px solid #23221f;outline-offset:2px}.ds-rb-mark{width:12px;height:12px;border-radius:50%;background:radial-gradient(#fff 0 32%,transparent 33%),conic-gradient(oklch(.58 .16 20),oklch(.58 .16 80),oklch(.58 .16 140),oklch(.58 .16 200),oklch(.58 .16 260),oklch(.58 .16 320),oklch(.58 .16 380))}"
     }
   ],
   "narrative": {

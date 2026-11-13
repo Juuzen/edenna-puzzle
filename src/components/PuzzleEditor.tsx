@@ -8,10 +8,14 @@ import {
   type Puzzle,
   type PuzzleBackground,
   type PuzzlePalette,
+  type PuzzleRainbow,
+  type RainbowLayer,
   type ColorRole,
   type ContrastLevel,
   CONTRAST_TARGETS,
   DEFAULT_BACKGROUND_ANGLE,
+  RAINBOW_PERIOD_MAX,
+  RAINBOW_PERIOD_MIN,
   checkColor,
   normalizeAngle,
   normalizeHexColor,
@@ -65,6 +69,8 @@ import { Bridge, CellSymbol, Hexagon, LINE, START_R, U, colorVar } from './Symbo
 import { EXIT_LENGTH } from './tracing';
 import { backgroundCss } from './background';
 import { downloadText, slugify } from './collectionOps';
+import { rainbowLayers, rainbowWorstContrast } from './rainbow';
+import { RainbowBoardMarks, RainbowMark } from './RainbowMarks';
 
 export interface PuzzleEditorProps {
   /** Puzzle iniziale (non controllato). */
@@ -425,6 +431,106 @@ function BackgroundControls({
     </>
   );
 }
+
+const RAINBOW_ROWS: { key: keyof PuzzleRainbow; label: string; period: number }[] = [
+  { key: 'elements', label: 'Elementi di gioco', period: 8 },
+  { key: 'background', label: 'Sfondo', period: 20 },
+];
+
+const contrastLevel = (role: ColorRole, ratio: number): ContrastLevel =>
+  ratio >= CONTRAST_TARGETS[role].good ? 'good' : ratio >= CONTRAST_TARGETS[role].min ? 'low' : 'bad';
+
+/**
+ * Arcobaleno: due livelli indipendenti, ciascuno con la durata del ciclo.
+ * Il cursore usa lo stesso meccanismo dello sfondo (un passo di annulla).
+ */
+function RainbowControls({
+  value,
+  background,
+  colors,
+  onChange,
+  onSettle,
+}: {
+  value?: PuzzleRainbow;
+  background?: PuzzleBackground;
+  /** Colori effettivi di griglia e percorso, per il contrasto nel ciclo. */
+  colors: Required<PuzzlePalette>;
+  onChange: (r: PuzzleRainbow | undefined, continuous: boolean) => void;
+  onSettle: () => void;
+}) {
+  const settle = { onBlur: onSettle, onPointerUp: onSettle, onKeyUp: onSettle };
+  const set = (key: keyof PuzzleRainbow, layer: RainbowLayer | undefined, continuous: boolean) => {
+    const next: PuzzleRainbow = { ...value };
+    if (layer) next[key] = layer;
+    else delete next[key];
+    onChange(Object.keys(next).length ? next : undefined, continuous);
+  };
+  const cycle = value?.background
+    ? (['line', 'path'] as const).map((role) => {
+        const ratio = rainbowWorstContrast(colors[role], background);
+        return { role, label: role === 'line' ? 'Griglia' : 'Percorso', ratio, level: contrastLevel(role, ratio) };
+      })
+    : [];
+  return (
+    <div className="ep-rb">
+      {RAINBOW_ROWS.map((r) => {
+        const layer = value?.[r.key];
+        const id = `ep-rb-${r.key}`;
+        return (
+          <div key={r.key} className="ep-rb__layer">
+            <label className="ep-check">
+              <input
+                type="checkbox"
+                checked={!!layer}
+                aria-controls={layer ? id : undefined}
+                onChange={(e) => set(r.key, e.target.checked ? { period: r.period } : undefined, false)}
+              />
+              {r.label}
+            </label>
+            {layer && (
+              <label className="ep-field ep-rb__speed" id={id}>
+                <span>
+                  Ciclo completo: <output className="ep-rb__value">{layer.period} s</output>
+                </span>
+                <input
+                  type="range"
+                  min={RAINBOW_PERIOD_MIN}
+                  max={RAINBOW_PERIOD_MAX}
+                  step={1}
+                  value={layer.period}
+                  aria-valuetext={`${layer.period} secondi per ciclo`}
+                  onChange={(e) => set(r.key, { period: +e.target.value }, true)}
+                  {...settle}
+                />
+                <span className="ep-rb__scale" aria-hidden>
+                  <span>veloce</span>
+                  <span>lento</span>
+                </span>
+              </label>
+            )}
+          </div>
+        );
+      })}
+      {cycle.length > 0 && (
+        <div className="ep-rb__contrast">
+          <span>Contrasto nel ciclo</span>
+          {cycle.map((c) => (
+            <span
+              key={c.role}
+              className={`ep-contrast ep-contrast--${c.level}`}
+              title={`${c.label} sullo sfondo, nel punto peggiore del ciclo: ${LEVEL_TEXT[c.level].toLowerCase()}. Minimo consigliato ${CONTRAST_TARGETS[c.role].good}:1.`}
+            >
+              {c.label} {c.ratio.toFixed(1)}:1
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="ep-note">Si vede in Prova e in Gioca. Le regole usano sempre il colore di partenza.</p>
+    </div>
+  );
+}
+
+const RAINBOW_LAYER_TEXT = { elements: 'elementi', background: 'sfondo' } as const;
 
 /** Piccola icona SVG per i pulsanti degli strumenti. */
 function ToolIcon({ kind, tool }: { kind: ToolKind; tool: ToolState }) {
@@ -891,9 +997,13 @@ export function PuzzleEditor({
 
   /** Vero mentre si trascina un selettore dello sfondo (stesso passo di annulla). */
   const bgDragging = useRef(false);
-  const setLook = (patch: { background?: PuzzleBackground; palette?: PuzzlePalette }, continuous: boolean) => {
+  const setLook = (
+    patch: { background?: PuzzleBackground; palette?: PuzzlePalette; rainbow?: PuzzleRainbow },
+    continuous: boolean,
+  ) => {
     const next = { ...puzzle, ...patch };
     if (!next.background) delete next.background;
+    if (!next.rainbow) delete next.rainbow;
     // Senza sfondo proprio i colori fissi non hanno senso: decide il tema.
     if (!next.palette || !next.background) delete next.palette;
     commit(next, bgDragging.current);
@@ -902,6 +1012,9 @@ export function PuzzleEditor({
   const setBackground = (background: PuzzleBackground | undefined, continuous: boolean) =>
     setLook({ background }, continuous);
   const setPalette = (palette: PuzzlePalette | undefined, continuous: boolean) => setLook({ palette }, continuous);
+  const setRainbow = (rainbow: PuzzleRainbow | undefined, continuous: boolean) => setLook({ rainbow }, continuous);
+  const rbLayers = rainbowLayers(puzzle.rainbow);
+  const rbText = rbLayers.map((l) => RAINBOW_LAYER_TEXT[l]).join(' e ');
 
   /** Colori predefiniti, per i controlli di contrasto. */
   const rootRef = useRef<HTMLDivElement>(null);
@@ -952,11 +1065,18 @@ export function PuzzleEditor({
             onClick={() => setSide('look')}
           >
             Aspetto
+            {rbLayers.length > 0 && (
+              <>
+                <RainbowMark size={9} className="ep-tab__mark" />
+                <span className="ep-sr"> (arcobaleno attivo)</span>
+              </>
+            )}
           </button>
         </div>
         <div id="ep-panel-side" role="tabpanel" aria-labelledby={`ep-tab-${side}`} className="ep-tabpanel">
 
         {side === 'look' ? (
+          <>
             <section className="ep-group">
               <h3 className="ep-group__title">Sfondo</h3>
               <BackgroundControls
@@ -968,6 +1088,17 @@ export function PuzzleEditor({
                 onSettle={() => (bgDragging.current = false)}
               />
             </section>
+            <section className="ep-group">
+              <h3 className="ep-group__title">Arcobaleno</h3>
+              <RainbowControls
+                value={puzzle.rainbow}
+                background={puzzle.background}
+                colors={puzzle.background ? { ...themeColors, ...puzzle.palette } : themeColors}
+                onChange={setRainbow}
+                onSettle={() => (bgDragging.current = false)}
+              />
+            </section>
+          </>
         ) : (
           <>
         {TOOL_GROUPS.map((g) => (
@@ -1154,6 +1285,18 @@ export function PuzzleEditor({
               Prova
             </button>
           </div>
+          {rbLayers.length > 0 && (
+            <button
+              type="button"
+              className="ep-rb-badge"
+              title={`Arcobaleno su ${rbText}. ${mode === 'edit' ? "In Modifica i colori restano fermi: si vede in Prova e in Gioca. " : ''}Clic per le impostazioni.`}
+              onClick={() => setSide('look')}
+            >
+              <RainbowMark size={12} />
+              Arcobaleno
+              <span className="ep-sr">: {rbText}</span>
+            </button>
+          )}
           <div className="ep-toolbar__spacer" />
           <div className="ep-toolbar__group">
             <button
@@ -1222,7 +1365,12 @@ export function PuzzleEditor({
               paths={shownSolution}
               status={shownSolution ? 'success' : 'idle'}
               eliminated={shownEliminated}
-              overlay={overlay}
+              overlay={
+                <>
+                  <RainbowBoardMarks puzzle={puzzle} />
+                  {overlay}
+                </>
+              }
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={endPaint}

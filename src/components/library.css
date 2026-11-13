@@ -429,3 +429,17 @@
     border-bottom: 1px solid var(--ed-border);
   }
 }
+
+/* Miniatura di un puzzle con arcobaleno: segno statico nell'angolo. */
+.ep-library__thumbwrap {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+.ep-library__thumbwrap .ep-rainbow-mark {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--ed-surface);
+}

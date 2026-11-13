@@ -8,6 +8,8 @@ import {
   serializeCollection,
 } from '../engine';
 import { PuzzleBoard } from './PuzzleBoard';
+import { rainbowLayers } from './rainbow';
+import { RainbowMark } from './RainbowMarks';
 import { ImportDialog, importSummary, type ImportSource } from './ImportDialog';
 import {
   downloadText,
@@ -40,7 +42,14 @@ export interface PuzzleLibraryProps {
 }
 
 const Thumb = memo(function Thumb({ puzzle }: { puzzle: Puzzle }) {
-  return <PuzzleBoard puzzle={puzzle} className="ep-library__thumb" aria-hidden label="" />;
+  const board = <PuzzleBoard puzzle={puzzle} className="ep-library__thumb" aria-hidden label="" />;
+  if (!rainbowLayers(puzzle.rainbow).length) return board;
+  return (
+    <span className="ep-library__thumbwrap" title="Arcobaleno">
+      {board}
+      <RainbowMark size={12} />
+    </span>
+  );
 });
 
 /**
