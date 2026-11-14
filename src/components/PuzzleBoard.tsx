@@ -13,7 +13,8 @@ import {
   reflectPoint,
   symbolRefKey,
 } from '../engine';
-import { Bridge, CellSymbol, Hexagon, LINE, MARGIN, OVERPASS_BORDER, START_R, U, maxPolyominoSize } from './Symbols';
+import { boardFrame } from './shift';
+import { Bridge, CellSymbol, Hexagon, LINE, OVERPASS_BORDER, START_R, U, maxPolyominoSize } from './Symbols';
 import { EXIT_LENGTH, type TraceState, bridgeOverpasses, headPosition, mirrorTrace } from './tracing';
 
 export type BoardStatus = 'idle' | 'tracing' | 'success' | 'failure' | 'cancelled';
@@ -147,10 +148,12 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
     }
   }
 
-  const vb = `${-MARGIN} ${-MARGIN} ${w * U + MARGIN * 2} ${h * U + MARGIN * 2}`;
+  // --- contenitore quadrato, con la griglia al centro
+  const frame = boardFrame(w, h);
+  const vb = frame.viewBox;
 
   // --- sfondo del pannello (se il puzzle ne ha uno, altrimenti il tema)
-  const panel = { x: -MARGIN + 6, y: -MARGIN + 6, w: w * U + MARGIN * 2 - 12, h: h * U + MARGIN * 2 - 12 };
+  const panel = frame.panel;
   const bg = puzzle.background;
   const gradient =
     bg && bg.colors.length === 2
