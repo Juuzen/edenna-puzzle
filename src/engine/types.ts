@@ -144,10 +144,9 @@ export interface PuzzleRainbow {
 }
 
 /**
- * Sfalsamento puramente visivo della griglia. Input e regole non cambiano:
- * il giocatore traccia dove la griglia starebbe senza sfalsamento, mentre
- * linea e griglia si vedono spostate e ruotate (con avvolgimento ai bordi
- * del pannello).
+ * Sfalsamento visivo della griglia: si vede spostata e ruotata, con
+ * avvolgimento ai bordi del pannello, e il giocatore traccia su ciò che
+ * vede. Le regole non cambiano.
  */
 export interface PuzzleShift {
   /** Spostamento orizzontale in celle (positivo = destra). */

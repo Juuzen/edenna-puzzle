@@ -2,12 +2,14 @@
  * Geometria della board: contenitore quadrato e sfalsamento visivo.
  *
  * Tutto in unità SVG (cella = U). Il viewBox è un quadrato centrato sulla
- * griglia, quindi le coordinate di griglia non cambiano e `clientToGrid`
- * restituisce sempre la posizione logica (quella di Modifica).
+ * griglia, quindi senza sfalsamento le coordinate di griglia coincidono con
+ * quelle restituite da `clientToGrid`.
  *
- * Lo sfalsamento sposta e ruota solo il disegno; ciò che esce dal pannello
+ * Lo sfalsamento sposta e ruota il disegno; ciò che esce dal pannello
  * rientra dal lato opposto (wrap «Pacman»), disegnando copie traslate di un
- * periodo pari al lato del pannello.
+ * periodo pari al lato del pannello. Conta ciò che si vede: il puntatore è
+ * riportato sulla griglia con la trasformazione inversa, una candidata per
+ * copia.
  */
 import type { PuzzleShift } from '../engine';
 import { MARGIN, U } from './Symbols';
@@ -81,6 +83,60 @@ export function shiftTransform(frame: BoardFrame, g: ShiftGeometry, i = 0, j = 0
   const tx = frame.cx + g.dx + i * frame.period;
   const ty = frame.cy + g.dy + j * frame.period;
   return `translate(${tx} ${ty}) rotate(${g.rotation}) translate(${-frame.cx} ${-frame.cy})`;
+}
+
+/** Punto di griglia (celle) → punto disegnato nella copia (i, j), in unità SVG. */
+export function gridToVisual(frame: BoardFrame, g: ShiftGeometry, p: { x: number; y: number }, i = 0, j = 0) {
+  const rad = (g.rotation * Math.PI) / 180;
+  const vx = p.x * U - frame.cx;
+  const vy = p.y * U - frame.cy;
+  return {
+    x: frame.cx + g.dx + i * frame.period + vx * Math.cos(rad) - vy * Math.sin(rad),
+    y: frame.cy + g.dy + j * frame.period + vx * Math.sin(rad) + vy * Math.cos(rad),
+  };
+}
+
+/**
+ * Punto disegnato (unità SVG) → punti di griglia (celle) che vi compaiono:
+ * uno per ogni copia dell'avvolgimento, da i, j ∈ {-1, 0, 1}.
+ */
+export function visualToGridCandidates(frame: BoardFrame, g: ShiftGeometry, px: number, py: number) {
+  const rad = (-g.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const out: { x: number; y: number }[] = [];
+  for (const j of [-1, 0, 1]) {
+    for (const i of [-1, 0, 1]) {
+      const vx = px - (frame.cx + g.dx + i * frame.period);
+      const vy = py - (frame.cy + g.dy + j * frame.period);
+      out.push({ x: (frame.cx + vx * cos - vy * sin) / U, y: (frame.cy + vx * sin + vy * cos) / U });
+    }
+  }
+  return out;
+}
+
+/**
+ * Riporta un punto (unità SVG) dentro il pannello, modulo il periodo su
+ * entrambi gli assi: il pannello è un toro, come l'avvolgimento della griglia.
+ */
+export function wrapIntoPanel(frame: BoardFrame, p: { x: number; y: number }) {
+  const P = frame.period;
+  const mod = (v: number) => ((v % P) + P) % P;
+  return { x: frame.panel.x + mod(p.x - frame.panel.x), y: frame.panel.y + mod(p.y - frame.panel.y) };
+}
+
+/** La candidata più vicina a `ref` (celle). */
+export function nearestTo<T extends { x: number; y: number }>(cands: T[], ref: { x: number; y: number }): T {
+  let best = cands[0];
+  let bd = Infinity;
+  for (const c of cands) {
+    const d = Math.hypot(c.x - ref.x, c.y - ref.y);
+    if (d < bd) {
+      bd = d;
+      best = c;
+    }
+  }
+  return best;
 }
 
 /**

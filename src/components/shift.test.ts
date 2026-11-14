@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MARGIN, U } from './Symbols';
-import { boardFrame, shiftGeometry, shiftPeriodCells, shiftTransform, tileIntersects, wrapCentered, wrapTiles } from './shift';
+import { boardFrame, gridToVisual, nearestTo, shiftGeometry, visualToGridCandidates, wrapIntoPanel, shiftPeriodCells, shiftTransform, tileIntersects, wrapCentered, wrapTiles } from './shift';
 
 describe('contenitore quadrato', () => {
   it('griglia 3×5: viewBox quadrato centrato sulla griglia', () => {
@@ -57,6 +57,54 @@ describe('sfalsamento', () => {
     const f = boardFrame(4, 4);
     const tiles = wrapTiles(f, shiftGeometry(f, { rotation: 45 }), 4, 4);
     for (const t of [[-1, 0], [1, 0], [0, -1], [0, 1], [0, 0]]) expect(tiles).toContainEqual(t);
+  });
+
+  it('input visivo: il punto disegnato torna al punto di griglia, in ogni copia', () => {
+    const f = boardFrame(4, 3);
+    const g = shiftGeometry(f, { x: 1.5, y: -0.75, rotation: -17 });
+    const p = { x: 0, y: 3 };
+    for (const [i, j] of [[0, 0], [-1, 0], [1, 1]]) {
+      const v = gridToVisual(f, g, p, i, j);
+      const back = nearestTo(visualToGridCandidates(f, g, v.x, v.y), p);
+      expect(back.x).toBeCloseTo(0);
+      expect(back.y).toBeCloseTo(3);
+    }
+  });
+
+  it('input visivo: oltre il bordo si sceglie la candidata più vicina alla precedente', () => {
+    const f = boardFrame(4, 4);
+    const g = shiftGeometry(f, { x: 1 });
+    // Il punto (3.5, 2) è disegnato oltre il bordo destro e rientra a sinistra.
+    const v = gridToVisual(f, g, { x: 3.5, y: 2 }, -1, 0);
+    expect(v.x).toBeLessThan(f.panel.x + f.panel.w / 2);
+    const c = nearestTo(visualToGridCandidates(f, g, v.x, v.y), { x: 3.4, y: 2 });
+    expect(c.x).toBeCloseTo(3.5);
+  });
+
+  it('puntatore virtuale: oltre un bordo rientra dal lato opposto', () => {
+    const f = boardFrame(4, 3);
+    const { x, y, w, h } = f.panel;
+    const P = f.period;
+    expect(wrapIntoPanel(f, { x: x + 10, y: y + 20 })).toEqual({ x: x + 10, y: y + 20 });
+    const up = wrapIntoPanel(f, { x: x + 10, y: y - 5 });
+    expect(up.y).toBeCloseTo(y + h - 5);
+    const right = wrapIntoPanel(f, { x: x + w + 7, y: y + 1 });
+    expect(right.x).toBeCloseTo(x + 7);
+    const far = wrapIntoPanel(f, { x: x - 3 * P - 2, y: y + 5 * P + 3 });
+    expect(far.x).toBeCloseTo(x + P - 2);
+    expect(far.y).toBeCloseTo(y + 3);
+  });
+
+  it('puntatore virtuale e candidate: salendo oltre il bordo il punto di griglia prosegue', () => {
+    const f = boardFrame(4, 4);
+    const g = shiftGeometry(f, { y: -1.5 });
+    // Il punto (2, 0.5) è disegnato sopra il bordo superiore: lo si raggiunge dal basso.
+    const v = gridToVisual(f, g, { x: 2, y: 0.5 });
+    const wrapped = wrapIntoPanel(f, v);
+    expect(wrapped.y).toBeGreaterThan(f.cy);
+    const c = nearestTo(visualToGridCandidates(f, g, wrapped.x, wrapped.y), { x: 2, y: 0.6 });
+    expect(c.x).toBeCloseTo(2);
+    expect(c.y).toBeCloseTo(0.5);
   });
 
   it('una copia a due periodi non tocca mai il pannello', () => {

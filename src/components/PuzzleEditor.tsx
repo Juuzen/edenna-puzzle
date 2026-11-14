@@ -614,8 +614,9 @@ function ShiftControls({
         Azzera
       </button>
       <p className="ep-note">
-        Solo visivo: si traccia partendo da dove la partenza sta in Modifica. Ciò che esce dal pannello rientra dal
-        lato opposto. Si vede in Prova e in Gioca, dove la tastiera non traccia.
+        Si traccia sulla griglia così come si vede. Ciò che esce dal pannello rientra dal
+        lato opposto. Si vede in Prova e in Gioca: col mouse il puntatore viene catturato mentre si traccia (Esc
+        lo rilascia) e la tastiera non traccia.
       </p>
     </div>
   );
@@ -1410,7 +1411,7 @@ export function PuzzleEditor({
             <button
               type="button"
               className="ep-rb-badge"
-              title={`Griglia sfalsata (${shText}). ${mode === 'edit' ? 'In Modifica resta dritta: si vede in Prova e in Gioca. ' : ''}Si traccia partendo da dove la partenza sta in Modifica. Clic per le impostazioni.`}
+              title={`Griglia sfalsata (${shText}). ${mode === 'edit' ? 'In Modifica resta dritta: si vede in Prova e in Gioca. ' : ''}Clic per le impostazioni.`}
               onClick={() => setSide('look')}
             >
               <ShiftMark size={12} />
@@ -1539,7 +1540,7 @@ export function PuzzleEditor({
             {mode === 'test'
               ? (testResult ??
                 (shifted
-                  ? 'Griglia sfalsata: clic dove la partenza sta in Modifica, poi muovi il puntatore e clicca sull’uscita.'
+                  ? 'Clic sulla partenza, poi muovi il puntatore e clicca sull’uscita.'
                   : 'Clic sulla partenza, poi muovi il puntatore e clicca sull’uscita. Frecce e Invio da tastiera.'))
               : notice
                 ? <span className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</span>

@@ -56,6 +56,7 @@ basta cambiargli `key`. Props principali:
 | `cancelFadeMs` | `400` | Durata della dissolvenza di un percorso abbandonato |
 | `animateRainbow` | `true` | Fa ciclare i colori dei puzzle con `rainbow` |
 | `applyShift` | `true` | Sposta e ruota la griglia dei puzzle con `shift` |
+| `lockPointer` | `true` | Nei puzzle sfalsati, col mouse, cattura il puntatore mentre si traccia (Pointer Lock) |
 
 Comandi: clic sul cerchio di partenza, il percorso segue il puntatore, clic sull'uscita per confermare
 (oppure trascina e rilascia; su touch si trascina). Clic destro / Esc annulla, e un percorso
@@ -111,9 +112,14 @@ colori base.
 ### Sfalsamento
 
 Come nei pannelli finali di *The Witness*, la griglia può apparire spostata e ruotata pur restando
-ferma (`shift`). Il giocatore traccia dove la griglia starebbe dritta, cioè dove la vede in Modifica,
-mentre linea, cursore e griglia si vedono spostati: con 90° di rotazione, muovere il puntatore a
-destra fa scendere la linea. Ciò che esce dal pannello rientra dal lato opposto (effetto Pacman). Il
+ferma (`shift`). A differenza del gioco, conta ciò che si vede: si clicca la partenza dove è
+disegnata, anche se è rientrata dal lato opposto, e il percorso segue il puntatore sulla griglia
+spostata e ruotata. Ciò che esce dal pannello rientra dal lato opposto (effetto Pacman). Col mouse,
+mentre si traccia, il puntatore viene catturato (Pointer Lock, prop `lockPointer`): conta solo il
+movimento e un puntatore virtuale si avvolge ai bordi insieme alla linea, così si può proseguire oltre
+il bordo dello schermo. Esc, il clic destro o la conferma lo rilasciano. Se il browser non concede il
+lock (per esempio in un iframe con `sandbox` senza `allow-pointer-lock`) si usa la posizione assoluta
+del puntatore. Su touch il dito resta limitato dallo schermo: è un limite noto. Il
 player lo applica (`applyShift`, attivo per default); `PuzzleBoard` lo applica solo con `applyShift`,
 così in Modifica e nelle miniature la griglia resta dritta, segnalata da un piccolo segno.
 
@@ -210,7 +216,7 @@ orologio), `rainbowWorstContrast`.
 `shift` (facoltativo) sposta e ruota la griglia solo a livello visivo, nel player (Prova nell'editor e
 Gioca): `x` e `y` in celle (positivi verso destra e verso il basso, fino a ±12), `rotation` in gradi in
 senso orario attorno al centro della griglia (da -20 a 20, negativo = antiorario). Gli zeri si omettono. Input,
-regole, solver e validazione non lo leggono: il puntatore lavora sulla griglia dritta. Il pannello resta
+regole, solver e validazione non lo leggono; il puntatore lavora sulla griglia così come si vede. Il pannello resta
 fermo; ciò che ne esce rientra dal lato opposto, e con rotazioni oblique le parti rientrate possono
 sovrapporsi alla griglia. Nei puzzle sfalsati la tastiera non traccia. `hasShift(puzzle)` dice se un
 puzzle è sfalsato.
@@ -245,11 +251,12 @@ elenca in `warnings`; solo dimensioni non valide o JSON malformato sono errori.
 - Nuovo effetto **arcobaleno** (`rainbow`): i colori di simboli e sfondo ciclano durante il gioco,
   ciascuno dal proprio colore base; nell'editor restano fermi e un indicatore lo segnala.
 - Nuovo **sfalsamento** (`shift`): la griglia appare spostata e ruotata, con avvolgimento ai bordi,
-  mentre si traccia sulla griglia dritta. Tutti i puzzle stanno in un pannello quadrato.
+  e si traccia su ciò che si vede. Tutti i puzzle stanno in un pannello quadrato.
 - Niente server: pubblicazione, login e lista online dell'originale sono stati tolti. Al loro posto
   ci sono file JSON e una raccolta locale nella demo.
 - Il tracciamento usa il puntatore in posizione assoluta invece del pointer lock, così funziona
-  anche su touch e in modalità kiosk; c'è il controllo da tastiera.
+  anche su touch e in modalità kiosk; c'è il controllo da tastiera. Il pointer lock si usa solo nei
+  puzzle sfalsati col mouse, dove il wrap richiede di proseguire oltre i bordi.
 
 ## Struttura
 

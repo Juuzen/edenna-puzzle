@@ -16,11 +16,14 @@ import {
   type TraceState,
   distanceToGrid,
   isTraceComplete,
+  traceHead,
   moveTrace,
   startTrace,
   stepTrace,
   tracePaths,
 } from './tracing';
+import { boardFrame, nearestTo, shiftGeometry, visualToGridCandidates, wrapIntoPanel } from './shift';
+import { U } from './Symbols';
 
 export interface PuzzlePlayerProps {
   puzzle: Puzzle;
@@ -48,11 +51,19 @@ export interface PuzzlePlayerProps {
   /** Fa ciclare i colori dei puzzle con `rainbow`. Default: true. */
   animateRainbow?: boolean;
   /**
-   * Sposta e ruota la griglia dei puzzle con `shift`. Default: true. È solo
-   * visivo: si traccia dove la griglia starebbe dritta, e la tastiera non
-   * traccia (resta Esc per annullare).
+   * Sposta e ruota la griglia dei puzzle con `shift`. Default: true. Si
+   * traccia sulla griglia così come si vede; la tastiera non traccia (resta
+   * Esc per annullare).
    */
   applyShift?: boolean;
+  /**
+   * Nei puzzle sfalsati, col mouse, cattura il puntatore mentre si traccia
+   * (Pointer Lock): conta solo il movimento e il puntatore si avvolge come la
+   * griglia, così si può proseguire oltre il bordo dello schermo. Esc o la
+   * conferma lo rilasciano. Se il browser lo nega si usa la posizione
+   * assoluta. Default: true.
+   */
+  lockPointer?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -70,10 +81,12 @@ const START_PICK = 0.4;
  * Tastiera: Invio/Spazio per iniziare, frecce per muovere, Invio per
  * confermare, Esc per annullare.
  *
- * Puzzle sfalsati (`shift`): il puntatore lavora sulla griglia dritta, cioè
- * si clicca la partenza dove sta in Modifica, mentre linea e griglia si
- * vedono spostate. La tastiera non traccia (solo Esc) e la board esce
- * dall'ordine di tabulazione.
+ * Puzzle sfalsati (`shift`): conta ciò che si vede. Si clicca la partenza
+ * dove è disegnata, anche se è rientrata dal lato opposto del pannello, e
+ * il percorso segue il puntatore sulla griglia spostata e ruotata. La
+ * tastiera non traccia (solo Esc) e la board esce dall'ordine di tabulazione.
+ * Col mouse il puntatore viene catturato mentre si traccia (`lockPointer`):
+ * un puntatore virtuale si avvolge ai bordi del pannello insieme alla linea.
  */
 export function PuzzlePlayer({
   puzzle,
@@ -88,6 +101,7 @@ export function PuzzlePlayer({
   cancelFadeMs = 400,
   animateRainbow = true,
   applyShift = true,
+  lockPointer = true,
   className,
   style,
 }: PuzzlePlayerProps) {
@@ -95,6 +109,27 @@ export function PuzzlePlayer({
   /** Griglia sfalsata: niente tracciamento da tastiera. */
   const shifted = applyShift && hasShift(puzzle);
   const svgRef = useRef<SVGSVGElement>(null);
+  /** Ultima posizione del puntatore sulla griglia: sceglie la copia giusta dell'avvolgimento. */
+  const lastPointer = useRef<Coord | null>(null);
+  /**
+   * Punti di griglia sotto il puntatore. Senza sfalsamento è uno solo; con lo
+   * sfalsamento uno per ogni copia disegnata (avvolgimento ai bordi).
+   */
+  const pointerCandidates = (clientX: number, clientY: number): Coord[] => {
+    const raw = clientToGrid(svgRef.current!, clientX, clientY);
+    if (!shifted) return [raw];
+    const frame = boardFrame(puzzle.width, puzzle.height);
+    return visualToGridCandidates(frame, shiftGeometry(frame, puzzle.shift), raw.x * U, raw.y * U);
+  };
+  /** Puntatore virtuale (unità SVG, spazio disegnato) mentre il mouse è catturato. */
+  const virtual = useRef<Coord | null>(null);
+  /** Il lock è stato ottenuto per il tracciamento in corso. */
+  const lockActive = useRef(false);
+  const isLocked = () => !!svgRef.current && document.pointerLockElement === svgRef.current;
+  const releaseLock = useCallback(() => {
+    virtual.current = null;
+    if (svgRef.current && document.pointerLockElement === svgRef.current) document.exitPointerLock();
+  }, []);
   const [trace, setTrace] = useState<TraceState | null>(null);
   const [status, setStatus] = useState<BoardStatus>('idle');
   const [errors, setErrors] = useState<SymbolRef[]>([]);
@@ -114,6 +149,7 @@ export function PuzzlePlayer({
   };
 
   const reset = useCallback(() => {
+    releaseLock();
     window.clearTimeout(timer.current);
     update(null);
     setCursor(null);
@@ -123,11 +159,17 @@ export function PuzzlePlayer({
     setErrors([]);
     setEliminated([]);
     setFinalPaths(null);
-  }, []);
+  }, [releaseLock]);
 
   // Nuovo puzzle → stato pulito.
   useEffect(reset, [puzzle, reset]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      releaseLock();
+    },
+    [releaseLock],
+  );
 
   const locked = disabled || (lockOnSolve && status === 'success');
 
@@ -144,6 +186,7 @@ export function PuzzlePlayer({
 
   /** Abbandona il percorso: svanisce con una breve dissolvenza. */
   const cancel = () => {
+    releaseLock();
     const t = traceRef.current;
     dragRef.current = null;
     setCursor(null);
@@ -164,6 +207,7 @@ export function PuzzlePlayer({
 
   /** Rilascio/conferma: convalida se il serpente è sull'uscita. */
   const finish = () => {
+    releaseLock();
     const t = traceRef.current;
     dragRef.current = null;
     setCursor(null);
@@ -192,6 +236,25 @@ export function PuzzlePlayer({
     }
   };
 
+  // Lock perso mentre si traccia (Esc, cambio di finestra): il browser non
+  // inoltra quell'Esc alla pagina, quindi si annulla qui.
+  const cancelRef = useRef(cancel);
+  cancelRef.current = cancel;
+  useEffect(() => {
+    const onChange = () => {
+      if (isLocked()) {
+        lockActive.current = true;
+        return;
+      }
+      if (!lockActive.current) return;
+      lockActive.current = false;
+      virtual.current = null;
+      if (traceRef.current) cancelRef.current();
+    };
+    document.addEventListener('pointerlockchange', onChange);
+    return () => document.removeEventListener('pointerlockchange', onChange);
+  }, []);
+
   // --- puntatore
 
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
@@ -201,28 +264,68 @@ export function PuzzlePlayer({
       return;
     }
     if (e.button !== 0) return;
-    const g = clientToGrid(svgRef.current, e.clientX, e.clientY);
     if (traceRef.current) {
       // Secondo clic in modalità "segui il puntatore": conferma.
       finish();
       return;
     }
+    const cands = pointerCandidates(e.clientX, e.clientY);
     const start = puzzle.points
       .filter((p) => p.type === 'start')
-      .map((p) => ({ p, d: Math.hypot(p.x - g.x, p.y - g.y) }))
+      .flatMap((p) => cands.map((g) => ({ p, g, d: Math.hypot(p.x - g.x, p.y - g.y) })))
       .sort((a, b) => a.d - b.d)[0];
     if (!start || start.d > START_PICK) return;
+    const g = start.g;
+    lastPointer.current = g;
     e.preventDefault();
     svgRef.current.setPointerCapture(e.pointerId);
     dragRef.current = { pointerId: e.pointerId, moved: false, mode: e.pointerType === 'mouse' ? 'follow' : 'drag' };
     begin(startTrace(start.p));
     setCursor(g);
+    if (shifted && lockPointer && e.pointerType === 'mouse') requestLock(e.clientX, e.clientY);
+  };
+
+  /** Cattura il mouse partendo dal punto cliccato; se non si può, resta l'input assoluto. */
+  const requestLock = (clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg || typeof svg.requestPointerLock !== 'function') return;
+    const raw = clientToGrid(svg, clientX, clientY);
+    virtual.current = { x: raw.x * U, y: raw.y * U };
+    try {
+      const r = svg.requestPointerLock() as unknown;
+      if (r && typeof (r as Promise<void>).catch === 'function') {
+        (r as Promise<void>).catch(() => {
+          virtual.current = null;
+        });
+      }
+    } catch {
+      virtual.current = null;
+    }
   };
 
   const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
     const t = traceRef.current;
     if (!t || !svgRef.current) return;
-    const g = clientToGrid(svgRef.current, e.clientX, e.clientY);
+    let cands: Coord[];
+    if (isLocked() && virtual.current) {
+      // Mouse catturato: conta il movimento; il puntatore virtuale si avvolge
+      // nel pannello come la griglia, quindi non incontra mai un bordo.
+      const frame = boardFrame(puzzle.width, puzzle.height);
+      const m = svgRef.current.getScreenCTM();
+      const scale = m ? Math.hypot(m.a, m.b) || 1 : 1;
+      const v = wrapIntoPanel(frame, {
+        x: virtual.current.x + e.movementX / scale,
+        y: virtual.current.y + e.movementY / scale,
+      });
+      virtual.current = v;
+      cands = visualToGridCandidates(frame, shiftGeometry(frame, puzzle.shift), v.x, v.y);
+    } else {
+      cands = pointerCandidates(e.clientX, e.clientY);
+    }
+    // Fra le copie, quella più vicina al passo precedente: oltre un bordo il
+    // percorso prosegue nella copia che rientra dal lato opposto.
+    const g = nearestTo(cands, lastPointer.current ?? traceHead(t));
+    lastPointer.current = g;
     setCursor(g);
     const next = moveTrace(idx, t, g, captureRadius);
     if (dragRef.current && next.path.length + next.t > 1.3) dragRef.current.moved = true;

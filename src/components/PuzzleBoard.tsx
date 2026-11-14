@@ -46,8 +46,9 @@ export interface PuzzleBoardProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
   animateRainbow?: boolean;
   /**
    * Disegna la griglia spostata e ruotata se il puzzle ha `shift` (prova e
-   * gioco). È solo visivo: le coordinate del puntatore restano quelle della
-   * griglia dritta. Senza, la griglia è dritta (editor, miniature).
+   * gioco). Le regole non cambiano; per l'input da puntatore vedi
+   * `visualToGridCandidates` in shift.ts. Senza, la griglia è dritta
+   * (editor, miniature).
    */
   applyShift?: boolean;
 }
