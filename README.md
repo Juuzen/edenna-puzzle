@@ -52,7 +52,7 @@ basta cambiargli `key`. Props principali:
 | `revealErrors` | `true` | Fa lampeggiare i simboli non soddisfatti |
 | `lockOnSolve` | `true` | Blocca il puzzle dopo la soluzione |
 | `disabled` | `false` | |
-| `captureRadius` | `0.25` | Distanza (in celle) dalle linee entro cui il percorso segue il puntatore; al centro delle celle viene ignorato |
+| `captureRadius` | `0.25` | Distanza (in celle) dalle linee entro cui il percorso segue il puntatore; al centro delle celle viene ignorato. Uscendo dalla griglia la linea si stacca e riprende quando il puntatore torna vicino alla testa |
 | `cancelFadeMs` | `400` | Durata della dissolvenza di un percorso abbandonato |
 | `animateRainbow` | `true` | Fa ciclare i colori dei puzzle con `rainbow` |
 | `applyShift` | `true` | Sposta e ruota la griglia dei puzzle con `shift` |

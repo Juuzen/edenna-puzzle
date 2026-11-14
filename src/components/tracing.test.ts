@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createPuzzle, indexPuzzle, setPoint, setSymmetry, type Coord, type Direction } from '../engine';
 import { CAPTURE_RADIUS, bridgeOverpasses, distanceToGrid, headPosition, moveTrace, startTrace, stepTrace, type TraceState } from './tracing';
 
+/** Strada massima della testa per un passo del puntatore da 0.02 (budget: ×1.5 + 0.03). */
+const MAX_STEP = 0.02 * 1.5 + 0.03 + 1e-6;
+
 /** Simula il puntatore lungo una serie di punti, a piccoli passi. */
 function drive(idx: ReturnType<typeof indexPuzzle>, start: Coord, waypoints: Coord[], step = 0.02) {
   let s: TraceState = startTrace(start);
@@ -40,19 +43,36 @@ describe('tracciamento con il puntatore', () => {
     expect(headPosition(r.s)).toEqual({ x: 1, y: 3 });
   });
 
-  // Se il puntatore "taglia" la curva passando a distanza r dall'incrocio,
-  // la testa deve comunque passare per l'incrocio: salta da un braccio
-  // all'altro di circa r·√2. È il minimo possibile, non uno sfarfallio.
-  it('curva "tagliata" vicino all’incrocio: salto limitato a r·√2', () => {
+  // Se il puntatore "taglia" la curva, la testa passa comunque per
+  // l'incrocio scorrendo lungo le linee: nessun salto da un braccio all'altro.
+  it('curva "tagliata" vicino all’incrocio: la testa scorre senza salti', () => {
     const r = drive(idx, { x: 0, y: 4 }, [{ x: 0, y: 3.4 }, { x: 0.15, y: 3.1 }, { x: 0.4, y: 3.0 }, { x: 1, y: 3 }]);
-    expect(r.maxJump).toBeLessThan(0.15 * Math.SQRT2 + 0.02);
+    expect(r.maxJump).toBeLessThan(MAX_STEP);
     expect(headPosition(r.s)).toEqual({ x: 1, y: 3 });
   });
 
   it('svolta con il puntatore leggermente fuori linea', () => {
     const r = drive(idx, { x: 0, y: 4 }, [{ x: 0.12, y: 3.0 }, { x: 0.12, y: 2.88 }, { x: 0.8, y: 2.9 }]);
-    expect(r.maxJump).toBeLessThan(0.12 * Math.SQRT2 + 0.02);
+    expect(r.maxJump).toBeLessThan(MAX_STEP);
     expect(headPosition(r.s)).toEqual({ x: 0.8, y: 3 });
+  });
+
+  it('incrocio con il puntatore decentrato: si prosegue dritto', () => {
+    // su lungo x=1 con il puntatore a x=0.9 (o 1.1), attraverso l'incrocio (1,2)
+    for (const x of [0.9, 1.1]) {
+      const r = drive(idx, { x: 1, y: 4 }, [{ x, y: 3.8 }, { x, y: 1.5 }]);
+      expect(r.maxJump).toBeLessThan(MAX_STEP);
+      expect(r.s.path.every((c) => c.x === 1)).toBe(true);
+      expect(headPosition(r.s)).toEqual({ x: 1, y: 1.5 });
+    }
+  });
+
+  it('incrocio: si svolta quando lo spostamento laterale è netto', () => {
+    const r = drive(idx, { x: 1, y: 4 }, [{ x: 0.9, y: 3.8 }, { x: 0.9, y: 2.02 }, { x: 0.3, y: 2.02 }]);
+    expect(r.maxJump).toBeLessThan(MAX_STEP);
+    expect(r.s.path.map((c) => `${c.x},${c.y}`)).toEqual(['1,4', '1,3', '1,2']);
+    expect(r.s.dir).toBe('left');
+    expect(headPosition(r.s).x).toBeCloseTo(0.3, 5);
   });
 
   it('oscillare sulla diagonale di un incrocio non fa sfarfallare il percorso', () => {
@@ -99,11 +119,39 @@ describe('tracciamento con il puntatore', () => {
     }
   });
 
-  it('attraversare una cella in diagonale: la testa aspetta e riparte sulla linea', () => {
+  it('attraversare una cella in diagonale: la testa resta ferma, niente scatti al rientro', () => {
     // dal lato sinistro della cella in basso a sinistra al suo angolo opposto
     const r = drive(idx, { x: 0, y: 4 }, [{ x: 0, y: 3.5 }, { x: 0.5, y: 3.5 }, { x: 0.9, y: 3.05 }, { x: 1, y: 3 }]);
-    expect(headPosition(r.s)).toEqual({ x: 1, y: 3 });
-    expect(r.s.path.map((c) => `${c.x},${c.y}`)).toEqual(['0,4', '0,3', '1,3']);
+    expect(headPosition(r.s)).toEqual({ x: 0, y: 3.5 });
+    expect(r.s.detached).toBe(true);
+    expect(r.maxJump).toBeLessThan(MAX_STEP);
+  });
+
+  it('riaggancio: dopo un’uscita dalla griglia si riparte solo vicino alla testa', () => {
+    let s = drive(idx, { x: 0, y: 4 }, [{ x: 0, y: 3.5 }]).s;
+    const before = headPosition(s);
+    // al centro della cella, poi su una linea lontana dalla testa
+    for (const p of [{ x: 0.5, y: 3.5 }, { x: 0.5, y: 3.05 }, { x: 0.5, y: 3 }, { x: 1, y: 3 }]) {
+      s = moveTrace(idx, s, p);
+      expect(headPosition(s)).toEqual(before);
+    }
+    // di nuovo vicino alla testa: la si riaggancia e la si porta su
+    s = moveTrace(idx, s, { x: 0.1, y: 3.45 });
+    expect(s.detached).toBeFalsy();
+    let prev = headPosition(s);
+    for (let y = 3.44; y >= 3.2 - 1e-9; y -= 0.02) {
+      s = moveTrace(idx, s, { x: 0.05, y });
+      const h = headPosition(s);
+      expect(Math.hypot(h.x - prev.x, h.y - prev.y)).toBeLessThan(MAX_STEP);
+      prev = h;
+    }
+    expect(headPosition(s).y).toBeCloseTo(3.2, 5);
+  });
+
+  it('dopo un passo da tastiera il puntatore va riagganciato', () => {
+    const s = stepTrace(idx, startTrace({ x: 0, y: 4 }), 'up');
+    expect(headPosition(moveTrace(idx, s, { x: 2, y: 3 }))).toEqual({ x: 0, y: 3 });
+    expect(headPosition(moveTrace(idx, s, { x: 0.2, y: 3 })).x).toBeGreaterThan(0);
   });
 
   it('il percorso segue ancora il puntatore vicino all’uscita', () => {

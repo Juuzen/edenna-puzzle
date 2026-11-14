@@ -280,7 +280,7 @@ export function PuzzlePlayer({
     e.preventDefault();
     svgRef.current.setPointerCapture(e.pointerId);
     dragRef.current = { pointerId: e.pointerId, moved: false, mode: e.pointerType === 'mouse' ? 'follow' : 'drag' };
-    begin(startTrace(start.p));
+    begin(startTrace(start.p, g));
     setCursor(g);
     if (shifted && lockPointer && e.pointerType === 'mouse') requestLock(e.clientX, e.clientY);
   };
@@ -367,7 +367,8 @@ export function PuzzlePlayer({
       if (t) finish();
       else {
         const s = puzzle.points.find((p) => p.type === 'start');
-        if (s) begin(startTrace(s));
+        // Il puntatore può essere ovunque: lo si riaggancia vicino alla testa.
+        if (s) begin({ ...startTrace(s), detached: true });
       }
       return;
     }
