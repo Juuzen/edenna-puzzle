@@ -143,6 +143,21 @@ export interface PuzzleRainbow {
   background?: RainbowLayer;
 }
 
+/**
+ * Sfalsamento puramente visivo della griglia. Input e regole non cambiano:
+ * il giocatore traccia dove la griglia starebbe senza sfalsamento, mentre
+ * linea e griglia si vedono spostate e ruotate (con avvolgimento ai bordi
+ * del pannello).
+ */
+export interface PuzzleShift {
+  /** Spostamento orizzontale in celle (positivo = destra). */
+  x?: number;
+  /** Spostamento verticale in celle (positivo = giù). */
+  y?: number;
+  /** Rotazione in gradi, senso orario, attorno al centro della griglia. [0, 360). */
+  rotation?: number;
+}
+
 export interface PuzzleMeta {
   /**
    * Identificativo interno, univoco tra tutte le raccolte (`p1`, `p2`, …).
@@ -156,6 +171,8 @@ export interface PuzzleMeta {
   palette?: PuzzlePalette;
   /** Colori che ciclano durante il gioco (solo visivo). */
   rainbow?: PuzzleRainbow;
+  /** Griglia spostata e ruotata (solo visivo). */
+  shift?: PuzzleShift;
   /** Campo libero per l'applicazione che ospita il puzzle (es. Edenna OS). */
   data?: Record<string, unknown>;
 }

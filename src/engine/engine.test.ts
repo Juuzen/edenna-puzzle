@@ -3,6 +3,7 @@ import {
   createPuzzle,
   endDirection,
   fitPolyominoes,
+  hasShift,
   indexPuzzle,
   orientations,
   parseCollection,
@@ -430,5 +431,42 @@ describe('arcobaleno', () => {
     expect(parsePuzzle({ width: 2, height: 2, rainbow: { elements: false } }).puzzle.rainbow).toBeUndefined();
     expect(serializePuzzle({ ...base(), rainbow: {} })).not.toContain('rainbow');
     expect(parsePuzzle({ width: 2, height: 2, rainbow: 'sì' }).warnings.length).toBeGreaterThan(0);
+  });
+});
+
+describe('sfalsamento', () => {
+  it('andata e ritorno con ordine stabile', () => {
+    const p = { ...base(), shift: { rotation: 20, y: -0.75, x: 1.5 } };
+    const json = serializePuzzle(p);
+    const { puzzle, warnings } = parsePuzzle(json);
+    expect(warnings).toEqual([]);
+    expect(puzzle.shift).toEqual({ x: 1.5, y: -0.75, rotation: 20 });
+    expect(Object.keys(JSON.parse(json).shift)).toEqual(['x', 'y', 'rotation']);
+    expect(hasShift(puzzle)).toBe(true);
+  });
+
+  it('rotazione normalizzata in [0, 360)', () => {
+    const rot = (r: number) => parsePuzzle({ width: 2, height: 2, shift: { rotation: r } }).puzzle.shift?.rotation;
+    expect(rot(-90)).toBe(270);
+    expect(rot(450)).toBe(90);
+    expect(rot(360)).toBeUndefined();
+    expect(rot(359.99)).toBeUndefined();
+    expect(rot(12.34)).toBe(12.3);
+  });
+
+  it('spostamento limitato e arrotondato, con avviso', () => {
+    const r = parsePuzzle({ width: 2, height: 2, shift: { x: 99, y: -0.123 } });
+    expect(r.puzzle.shift).toEqual({ x: 12, y: -0.12 });
+    expect(r.warnings.filter((w) => w.startsWith('shift'))).toHaveLength(1);
+  });
+
+  it('zeri omessi; valori e chiavi non validi scartati con avvisi', () => {
+    expect(parsePuzzle({ width: 2, height: 2, shift: { x: 0, y: 0, rotation: 0 } }).puzzle.shift).toBeUndefined();
+    expect(serializePuzzle({ ...base(), shift: {} })).not.toContain('shift');
+    expect(hasShift(base())).toBe(false);
+    const r = parsePuzzle({ width: 2, height: 2, shift: { x: 'a', z: 1, rotation: 30 } });
+    expect(r.puzzle.shift).toEqual({ rotation: 30 });
+    expect(r.warnings.filter((w) => w.startsWith('shift'))).toHaveLength(2);
+    expect(parsePuzzle({ width: 2, height: 2, shift: 5 }).warnings.length).toBeGreaterThan(0);
   });
 });

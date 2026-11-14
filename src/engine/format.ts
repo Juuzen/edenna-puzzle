@@ -9,7 +9,9 @@ import {
   type PuzzleBackground,
   type PuzzleCollection,
   type PuzzlePalette,
+  type PuzzleMeta,
   type PuzzleRainbow,
+  type PuzzleShift,
   type Symmetry,
   COLORS,
   FORMAT_ID,
@@ -137,6 +139,49 @@ export function parseRainbow(raw: unknown, warnings: string[] = []): PuzzleRainb
   return Object.keys(sorted).length ? sorted : null;
 }
 
+/** Spostamento massimo (in celle) di `shift.x` e `shift.y`. */
+export const SHIFT_MAX = MAX_SIZE;
+const SHIFT_KEYS = ['x', 'y', 'rotation'] as const;
+
+/** Legge e ripulisce un campo `shift`; null se vuoto o tutto a zero. */
+export function parseShift(raw: unknown, warnings: string[] = []): PuzzleShift | null {
+  if (raw === undefined || raw === null) return null;
+  if (!isObj(raw)) {
+    warnings.push('"shift" deve essere un oggetto, ignorato.');
+    return null;
+  }
+  const out: PuzzleShift = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!(SHIFT_KEYS as readonly string[]).includes(k)) {
+      warnings.push(`shift.${k}: chiave sconosciuta, ignorata.`);
+      continue;
+    }
+    if (v === undefined || v === null) continue;
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+      warnings.push(`shift.${k}: valore "${String(v)}" non valido, ignorato.`);
+      continue;
+    }
+    if (k === 'rotation') {
+      const r = Math.round((((v % 360) + 360) % 360) * 10) / 10;
+      const n = r >= 360 ? 0 : r;
+      if (n) out.rotation = n;
+    } else {
+      const c = Math.min(SHIFT_MAX, Math.max(-SHIFT_MAX, Math.round(v * 100) / 100));
+      if (Math.abs(v) > SHIFT_MAX) warnings.push(`shift.${k}: ${v} fuori da ±${SHIFT_MAX} celle, uso ${c}.`);
+      if (c) out[k as 'x' | 'y'] = c;
+    }
+  }
+  const sorted: PuzzleShift = {};
+  for (const k of SHIFT_KEYS) if (out[k] !== undefined) sorted[k] = out[k];
+  return Object.keys(sorted).length ? sorted : null;
+}
+
+/** Il puzzle ha uno sfalsamento visivo della griglia. */
+export function hasShift(p: Pick<PuzzleMeta, 'shift'>): boolean {
+  const s = p.shift;
+  return !!s && !!(s.x || s.y || s.rotation);
+}
+
 /**
  * Legge un puzzle da testo JSON o da oggetto già parsato.
  * È tollerante: gli elementi non validi vengono scartati e segnalati in
@@ -260,6 +305,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
   const background = parseBackground(raw.background, warnings);
   const palette = parsePalette(raw.palette, warnings);
   const rainbow = parseRainbow(raw.rainbow, warnings);
+  const shift = parseShift(raw.shift, warnings);
 
   const puzzle: Puzzle = {
     format: FORMAT_ID,
@@ -269,6 +315,7 @@ export function parsePuzzle(input: string | unknown): ParseResult {
     ...(background ? { background } : {}),
     ...(palette ? { palette } : {}),
     ...(rainbow ? { rainbow } : {}),
+    ...(shift ? { shift } : {}),
     ...(isObj(raw.data) ? { data: raw.data } : {}),
     width,
     height,
@@ -362,6 +409,7 @@ export function toPuzzleObject(p: Puzzle): Puzzle {
   const background = p.background ? parseBackground(p.background) : null;
   const palette = p.palette ? parsePalette(p.palette) : null;
   const rainbow = p.rainbow ? parseRainbow(p.rainbow) : null;
+  const shift = p.shift ? parseShift(p.shift) : null;
   const out: Puzzle = {
     format: FORMAT_ID,
     version: FORMAT_VERSION,
@@ -370,6 +418,7 @@ export function toPuzzleObject(p: Puzzle): Puzzle {
     ...(background ? { background } : {}),
     ...(palette ? { palette } : {}),
     ...(rainbow ? { rainbow } : {}),
+    ...(shift ? { shift } : {}),
     width: p.width,
     height: p.height,
     symmetry: p.symmetry,
