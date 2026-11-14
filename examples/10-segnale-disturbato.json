@@ -1,0 +1,23 @@
+{
+  "format": "edenna-puzzle",
+  "version": 1,
+  "title": "Segnale disturbato",
+  "shift": {"x":1.5,"y":-0.75,"rotation":20},
+  "width": 4,
+  "height": 3,
+  "symmetry": "none",
+  "points": [
+    {"x":4,"y":0,"type":"end"},
+    {"x":2,"y":1,"type":"hexagon"},
+    {"x":0,"y":3,"type":"start"}
+  ],
+  "edges": [],
+  "cells": [
+    {"x":0,"y":1,"type":"square","color":"black"},
+    {"x":1,"y":1,"type":"square","color":"white"},
+    {"x":2,"y":1,"type":"square","color":"white"},
+    {"x":0,"y":2,"type":"square","color":"white"},
+    {"x":2,"y":2,"type":"square","color":"black"},
+    {"x":3,"y":2,"type":"square","color":"white"}
+  ]
+}

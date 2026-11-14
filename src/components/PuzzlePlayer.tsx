@@ -6,6 +6,7 @@ import {
   type Puzzle,
   type SymbolRef,
   type ValidationResult,
+  hasShift,
   indexPuzzle,
   validate,
 } from '../engine';
@@ -46,6 +47,12 @@ export interface PuzzlePlayerProps {
   cancelFadeMs?: number;
   /** Fa ciclare i colori dei puzzle con `rainbow`. Default: true. */
   animateRainbow?: boolean;
+  /**
+   * Sposta e ruota la griglia dei puzzle con `shift`. Default: true. È solo
+   * visivo: si traccia dove la griglia starebbe dritta, e la tastiera non
+   * traccia (resta Esc per annullare).
+   */
+  applyShift?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -62,6 +69,11 @@ const START_PICK = 0.4;
  * Touch/penna: trascina dalla partenza all'uscita e rilascia.
  * Tastiera: Invio/Spazio per iniziare, frecce per muovere, Invio per
  * confermare, Esc per annullare.
+ *
+ * Puzzle sfalsati (`shift`): il puntatore lavora sulla griglia dritta, cioè
+ * si clicca la partenza dove sta in Modifica, mentre linea e griglia si
+ * vedono spostate. La tastiera non traccia (solo Esc) e la board esce
+ * dall'ordine di tabulazione.
  */
 export function PuzzlePlayer({
   puzzle,
@@ -75,10 +87,13 @@ export function PuzzlePlayer({
   captureRadius = CAPTURE_RADIUS,
   cancelFadeMs = 400,
   animateRainbow = true,
+  applyShift = true,
   className,
   style,
 }: PuzzlePlayerProps) {
   const idx = indexPuzzle(puzzle);
+  /** Griglia sfalsata: niente tracciamento da tastiera. */
+  const shifted = applyShift && hasShift(puzzle);
   const svgRef = useRef<SVGSVGElement>(null);
   const [trace, setTrace] = useState<TraceState | null>(null);
   const [status, setStatus] = useState<BoardStatus>('idle');
@@ -243,6 +258,7 @@ export function PuzzlePlayer({
       e.preventDefault();
       return;
     }
+    if (shifted) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       if (t) finish();
@@ -271,9 +287,10 @@ export function PuzzlePlayer({
         errors={errors}
         eliminated={eliminated}
         animateRainbow={animateRainbow}
+        applyShift={applyShift}
         pointer={trace ? cursor : null}
         pointerIdle={!!cursor && distanceToGrid(puzzle, cursor) > captureRadius}
-        tabIndex={disabled ? -1 : 0}
+        tabIndex={disabled || shifted ? -1 : 0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
