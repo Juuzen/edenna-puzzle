@@ -141,6 +141,8 @@ export function parseRainbow(raw: unknown, warnings: string[] = []): PuzzleRainb
 
 /** Spostamento massimo (in celle) di `shift.x` e `shift.y`. */
 export const SHIFT_MAX = MAX_SIZE;
+/** Rotazione massima (gradi) di `shift.rotation`, in entrambi i versi. */
+export const SHIFT_ROTATION_MAX = 20;
 const SHIFT_KEYS = ['x', 'y', 'rotation'] as const;
 
 /** Legge e ripulisce un campo `shift`; null se vuoto o tutto a zero. */
@@ -162,9 +164,9 @@ export function parseShift(raw: unknown, warnings: string[] = []): PuzzleShift |
       continue;
     }
     if (k === 'rotation') {
-      const r = Math.round((((v % 360) + 360) % 360) * 10) / 10;
-      const n = r >= 360 ? 0 : r;
-      if (n) out.rotation = n;
+      const c = Math.min(SHIFT_ROTATION_MAX, Math.max(-SHIFT_ROTATION_MAX, Math.round(v * 10) / 10));
+      if (Math.abs(v) > SHIFT_ROTATION_MAX) warnings.push(`shift.rotation: ${v} fuori da ±${SHIFT_ROTATION_MAX}°, uso ${c}.`);
+      if (c) out.rotation = c;
     } else {
       const c = Math.min(SHIFT_MAX, Math.max(-SHIFT_MAX, Math.round(v * 100) / 100));
       if (Math.abs(v) > SHIFT_MAX) warnings.push(`shift.${k}: ${v} fuori da ±${SHIFT_MAX} celle, uso ${c}.`);

@@ -154,7 +154,7 @@ export interface PuzzleShift {
   x?: number;
   /** Spostamento verticale in celle (positivo = giù). */
   y?: number;
-  /** Rotazione in gradi, senso orario, attorno al centro della griglia. [0, 360). */
+  /** Rotazione in gradi, senso orario (negativo = antiorario), attorno al centro della griglia. Da -20 a 20. */
   rotation?: number;
 }
 

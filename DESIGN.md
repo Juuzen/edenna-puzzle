@@ -232,7 +232,7 @@ Angoli morbidi ma contenuti, tra 4px e 12px. Pulsanti e strumenti a 8px (`md`), 
 ### Sfalsamento
 - **In gioco (Prova e Gioca):** la griglia (con simboli, percorso e cursore) è spostata e ruotata attorno al suo centro; il pannello resta fermo. Ciò che esce da un lato rientra dal lato opposto, e il bordo del pannello è ridisegnato sopra, così i tagli coincidono con un bordo vero. Si traccia sulla griglia dritta; la tastiera non traccia (resta Esc).
 - **In Modifica e nelle miniature** la griglia è dritta: la scheda Aspetto ha il segno a quadrati sfalsati (inchiostro neutro, 9–12px), la barra ha il badge «Sfalsata» con scritto cosa cambia («posizione», «rotazione» o entrambe; porta alle impostazioni) e la miniatura ha il segno nell'angolo, accanto a quello dell'arcobaleno se c'è.
-- **Impostazioni (Aspetto → Sfalsamento):** cursori «Orizzontale» e «Verticale» in celle (fino a mezzo periodo), «Rotazione» 0–359°, ciascuno con il valore modificabile in mono; «Azzera».
+- **Impostazioni (Aspetto → Sfalsamento):** cursori «Orizzontale» e «Verticale» in celle (fino a mezzo periodo), «Rotazione» da -20° a +20° (lo zero è al centro del cursore), ciascuno con il valore modificabile in mono; «Azzera».
 
 ### Board
 - Pannello clinico quadrato con bordo sottile, griglia centrata, griglia grigio-azzurra, partenze piene, esagono scuro, ponte con staffe quadrate. Un simbolo in errore lampeggia con un alone rosso (4 cicli a 0.4s); uno eliminato scende a 0.22 di opacità.

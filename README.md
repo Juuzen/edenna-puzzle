@@ -209,7 +209,7 @@ orologio), `rainbowWorstContrast`.
 
 `shift` (facoltativo) sposta e ruota la griglia solo a livello visivo, nel player (Prova nell'editor e
 Gioca): `x` e `y` in celle (positivi verso destra e verso il basso, fino a ±12), `rotation` in gradi in
-senso orario attorno al centro della griglia (normalizzata in [0, 360)). Gli zeri si omettono. Input,
+senso orario attorno al centro della griglia (da -20 a 20, negativo = antiorario). Gli zeri si omettono. Input,
 regole, solver e validazione non lo leggono: il puntatore lavora sulla griglia dritta. Il pannello resta
 fermo; ciò che ne esce rientra dal lato opposto, e con rotazioni oblique le parti rientrate possono
 sovrapporsi alla griglia. Nei puzzle sfalsati la tastiera non traccia. `hasShift(puzzle)` dice se un

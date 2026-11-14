@@ -18,6 +18,7 @@ import {
   RAINBOW_PERIOD_MAX,
   RAINBOW_PERIOD_MIN,
   SHIFT_MAX,
+  SHIFT_ROTATION_MAX,
   hasShift,
   parseShift,
   checkColor,
@@ -568,7 +569,7 @@ function ShiftControls({
   const rows = [
     { key: 'x', label: 'Orizzontale', unit: 'celle', min: -half, max: half, step: 0.05, numMin: -SHIFT_MAX, numMax: SHIFT_MAX },
     { key: 'y', label: 'Verticale', unit: 'celle', min: -half, max: half, step: 0.05, numMin: -SHIFT_MAX, numMax: SHIFT_MAX },
-    { key: 'rotation', label: 'Rotazione', unit: 'gradi', min: 0, max: 359, step: 1, numMin: 0, numMax: 359.9 },
+    { key: 'rotation', label: 'Rotazione', unit: 'gradi', min: -SHIFT_ROTATION_MAX, max: SHIFT_ROTATION_MAX, step: 1, numMin: -SHIFT_ROTATION_MAX, numMax: SHIFT_ROTATION_MAX },
   ] as const;
   return (
     <div className="ep-shift">

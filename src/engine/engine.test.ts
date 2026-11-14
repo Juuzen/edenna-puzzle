@@ -445,13 +445,17 @@ describe('sfalsamento', () => {
     expect(hasShift(puzzle)).toBe(true);
   });
 
-  it('rotazione normalizzata in [0, 360)', () => {
+  it('rotazione da -20 a 20 gradi, oltre viene limitata con avviso', () => {
     const rot = (r: number) => parsePuzzle({ width: 2, height: 2, shift: { rotation: r } }).puzzle.shift?.rotation;
-    expect(rot(-90)).toBe(270);
-    expect(rot(450)).toBe(90);
-    expect(rot(360)).toBeUndefined();
-    expect(rot(359.99)).toBeUndefined();
-    expect(rot(12.34)).toBe(12.3);
+    expect(rot(-12.34)).toBe(-12.3);
+    expect(rot(20)).toBe(20);
+    expect(rot(-20)).toBe(-20);
+    expect(rot(90)).toBe(20);
+    expect(rot(-450)).toBe(-20);
+    expect(rot(0.04)).toBeUndefined();
+    const r = parsePuzzle({ width: 2, height: 2, shift: { rotation: 45 } });
+    expect(r.warnings.filter((w) => w.startsWith('shift'))).toHaveLength(1);
+    expect(hasShift({ shift: { rotation: -5 } })).toBe(true);
   });
 
   it('spostamento limitato e arrotondato, con avviso', () => {
@@ -464,8 +468,8 @@ describe('sfalsamento', () => {
     expect(parsePuzzle({ width: 2, height: 2, shift: { x: 0, y: 0, rotation: 0 } }).puzzle.shift).toBeUndefined();
     expect(serializePuzzle({ ...base(), shift: {} })).not.toContain('shift');
     expect(hasShift(base())).toBe(false);
-    const r = parsePuzzle({ width: 2, height: 2, shift: { x: 'a', z: 1, rotation: 30 } });
-    expect(r.puzzle.shift).toEqual({ rotation: 30 });
+    const r = parsePuzzle({ width: 2, height: 2, shift: { x: 'a', z: 1, rotation: 15 } });
+    expect(r.puzzle.shift).toEqual({ rotation: 15 });
     expect(r.warnings.filter((w) => w.startsWith('shift'))).toHaveLength(2);
     expect(parsePuzzle({ width: 2, height: 2, shift: 5 }).warnings.length).toBeGreaterThan(0);
   });
