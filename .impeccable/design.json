@@ -84,6 +84,14 @@
       "description": "Badge nella barra quando l'arcobaleno è attivo: ruota cromatica di 12px, «Arcobaleno» in grigio sabbia e, in inchiostro, su cosa è applicato (elementi, sfondo). Porta alle impostazioni.",
       "html": "<button class=\"ds-rb-badge\"><span class=\"ds-rb-mark\" aria-hidden=\"true\"></span>Arcobaleno <b>elementi e sfondo</b></button>",
       "css": ".ds-rb-badge{display:inline-flex;align-items:center;gap:6px;font:400 12px 'IBM Plex Sans',system-ui,sans-serif;color:#67635a;background:#fff;border:1px solid #e2dfd6;padding:3px 10px 3px 7px;border-radius:10px;cursor:pointer}.ds-rb-badge:hover{color:#23221f;border-color:#dcd8cd}.ds-rb-badge:focus-visible{outline:2px solid #23221f;outline-offset:2px}.ds-rb-badge b{font-weight:400;color:#23221f}.ds-rb-mark{width:12px;height:12px;border-radius:50%;background:radial-gradient(#fff 0 32%,transparent 33%),conic-gradient(oklch(.58 .16 20),oklch(.58 .16 80),oklch(.58 .16 140),oklch(.58 .16 200),oklch(.58 .16 260),oklch(.58 .16 320),oklch(.58 .16 380))}"
+    },
+    {
+      "name": "Segno sfalsamento",
+      "kind": "badge",
+      "refersTo": "ShiftMark, .ep-rb-badge",
+      "description": "Badge nella barra quando la griglia è sfalsata: due quadrati sfalsati di 12px in grigio sabbia, «Sfalsata» e, in inchiostro, cosa cambia (posizione, rotazione). Porta alle impostazioni. Mai giallo, mai blu.",
+      "html": "<button class=\"ds-rb-badge\"><span class=\"ds-shift-mark\" aria-hidden=\"true\"></span>Sfalsata <b>posizione e rotazione</b></button>",
+      "css": ".ds-rb-badge{display:inline-flex;align-items:center;gap:6px;font:400 12px 'IBM Plex Sans',system-ui,sans-serif;color:#67635a;background:#fff;border:1px solid #e2dfd6;padding:3px 10px 3px 7px;border-radius:10px;cursor:pointer}.ds-rb-badge b{font-weight:400;color:#23221f}.ds-shift-mark{position:relative;width:12px;height:12px}.ds-shift-mark::before,.ds-shift-mark::after{content:'';position:absolute;width:5px;height:5px;border:1.4px solid #67635a;border-radius:1px}.ds-shift-mark::before{left:0;top:0}.ds-shift-mark::after{right:0;bottom:0;background:#fff}"
     }
   ],
   "narrative": {
@@ -100,7 +108,8 @@
       { "name": "The Two Worlds Rule", "body": "Strumenti caldi, board fredda. Il giallo non entra nella board e il blu non entra negli strumenti.", "section": "colors" },
       { "name": "The One Signal Rule", "body": "Il giallo indica una sola cosa per contesto: lo strumento attivo nell'area di lavoro, la scheda corrente come barra sottile nell'intestazione.", "section": "colors" },
       { "name": "The Small Caps Label Rule", "body": "I titoli di gruppo sono in maiuscolo spaziato a 11px; mai per frasi intere.", "section": "typography" },
-      { "name": "The Flat-By-Default Rule", "body": "Le superfici sono piatte a riposo. L'ombra appare solo per ciò che galleggia.", "section": "elevation" }
+      { "name": "The Flat-By-Default Rule", "body": "Le superfici sono piatte a riposo. L'ombra appare solo per ciò che galleggia.", "section": "elevation" },
+      { "name": "The Straight Edit Rule", "body": "In Modifica e nelle miniature la griglia è sempre dritta: lo sfalsamento si vede solo in Prova e in Gioca, segnalato fuori dalla board e mai dentro.", "section": "layout" }
     ],
     "dos": [
       "Do tenere il giallo per lo strumento attivo e l'azione primaria; per il focus usa l'inchiostro.",

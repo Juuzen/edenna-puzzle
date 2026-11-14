@@ -182,7 +182,10 @@ Grigio caldo e carta per gli strumenti, bianco clinico e blu per la board, nove 
 
 ## Layout
 
-L'editor è una griglia a tre colonne: strumenti (270px), stage flessibile con la board, proprietà e JSON (296px), separate da filtri a 1px. La demo ha una barra superiore alta 52px e una colonna raccolta di 252px. Il player riempie il contenitore mantenendo le proporzioni della board. Sotto 1000px l'editor si ricompone; sotto 760px lo fanno raccolta e demo. Ritmo base a multipli di 4px (4, 8, 12, 24).
+L'editor è una griglia a tre colonne: strumenti (270px), stage flessibile con la board, proprietà e JSON (296px), separate da filtri a 1px. La demo ha una barra superiore alta 52px e una colonna raccolta di 252px. Il player riempie il contenitore con un quadrato: ogni board è quadrata, con la griglia centrata anche se non lo è. Sotto 1000px l'editor si ricompone; sotto 760px lo fanno raccolta e demo. Ritmo base a multipli di 4px (4, 8, 12, 24).
+
+### Named Rules
+**The Straight Edit Rule.** In Modifica e nelle miniature la griglia è sempre dritta: lo sfalsamento si vede solo in Prova e in Gioca. Fuori dalla board lo dicono il segno a quadrati sfalsati e il badge; dentro la board non c'è alcun indizio, per non rompere l'inganno.
 
 ## Elevation & Depth
 
@@ -226,8 +229,13 @@ Angoli morbidi ma contenuti, tra 4px e 12px. Pulsanti e strumenti a 8px (`md`), 
 - **In Modifica e nelle miniature** i colori restano quelli base e la board non porta alcun segno: la scheda Aspetto ha il segno a ruota, la barra accanto a Modifica/Prova ha il badge «Arcobaleno» con scritto su cosa è applicato («elementi», «sfondo» o «elementi e sfondo»; porta alle impostazioni) e la miniatura ha il segno nell'angolo.
 - **Impostazioni (Aspetto → Arcobaleno):** una casella per livello e, se attiva, il cursore «Ciclo completo» (1–16 s, valore in mono), più le pillole di contrasto nel punto peggiore del ciclo.
 
+### Sfalsamento
+- **In gioco (Prova e Gioca):** la griglia (con simboli, percorso e cursore) è spostata e ruotata attorno al suo centro; il pannello resta fermo. Ciò che esce da un lato rientra dal lato opposto, e il bordo del pannello è ridisegnato sopra, così i tagli coincidono con un bordo vero. Si traccia sulla griglia dritta; la tastiera non traccia (resta Esc).
+- **In Modifica e nelle miniature** la griglia è dritta: la scheda Aspetto ha il segno a quadrati sfalsati (inchiostro neutro, 9–12px), la barra ha il badge «Sfalsata» con scritto cosa cambia («posizione», «rotazione» o entrambe; porta alle impostazioni) e la miniatura ha il segno nell'angolo, accanto a quello dell'arcobaleno se c'è.
+- **Impostazioni (Aspetto → Sfalsamento):** cursori «Orizzontale» e «Verticale» in celle (fino a mezzo periodo), «Rotazione» 0–359°, ciascuno con il valore modificabile in mono; «Azzera».
+
 ### Board
-- Pannello clinico con bordo sottile, griglia grigio-azzurra, partenze piene, esagono scuro, ponte con staffe quadrate. Un simbolo in errore lampeggia con un alone rosso (4 cicli a 0.4s); uno eliminato scende a 0.22 di opacità.
+- Pannello clinico quadrato con bordo sottile, griglia centrata, griglia grigio-azzurra, partenze piene, esagono scuro, ponte con staffe quadrate. Un simbolo in errore lampeggia con un alone rosso (4 cicli a 0.4s); uno eliminato scende a 0.22 di opacità.
 
 ## Do's and Don'ts
 

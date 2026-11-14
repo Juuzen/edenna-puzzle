@@ -39,7 +39,8 @@ const { puzzle } = parsePuzzle(raw);
 />;
 ```
 
-Il player occupa il 100% del contenitore e mantiene le proporzioni. Per farlo ripartire da zero
+Il player occupa il 100% del contenitore e mantiene le proporzioni: ogni puzzle sta in un pannello
+quadrato, con la griglia centrata anche se non è quadrata. Per farlo ripartire da zero
 basta cambiargli `key`. Props principali:
 
 | Prop | Default | |
@@ -53,6 +54,8 @@ basta cambiargli `key`. Props principali:
 | `disabled` | `false` | |
 | `captureRadius` | `0.25` | Distanza (in celle) dalle linee entro cui il percorso segue il puntatore; al centro delle celle viene ignorato |
 | `cancelFadeMs` | `400` | Durata della dissolvenza di un percorso abbandonato |
+| `animateRainbow` | `true` | Fa ciclare i colori dei puzzle con `rainbow` |
+| `applyShift` | `true` | Sposta e ruota la griglia dei puzzle con `shift` |
 
 Comandi: clic sul cerchio di partenza, il percorso segue il puntatore, clic sull'uscita per confermare
 (oppure trascina e rilascia; su touch si trascina). Clic destro / Esc annulla, e un percorso
@@ -60,6 +63,8 @@ abbandonato svanisce con una breve dissolvenza. Mentre si traccia, un cerchietto
 posizione del puntatore (e il suo riflesso nei puzzle simmetrici); si attenua quando il puntatore
 è troppo lontano dalle linee per essere seguito.
 Da tastiera: Invio per partire, frecce o WASD per muovere, Invio sull'uscita per confermare.
+Nei puzzle sfalsati (`shift`) la tastiera non traccia: resta solo Esc per annullare e la board esce
+dall'ordine di tabulazione.
 
 Per validare soluzioni lato server o in Electron senza React:
 
@@ -103,6 +108,15 @@ ciascuno dal proprio colore base. Il player lo anima (`PuzzlePlayer`, prop `anim
 default); `PuzzleBoard` resta statica a meno di `animateRainbow`, così editor e miniature mostrano i
 colori base.
 
+### Sfalsamento
+
+Come nei pannelli finali di *The Witness*, la griglia può apparire spostata e ruotata pur restando
+ferma (`shift`). Il giocatore traccia dove la griglia starebbe dritta, cioè dove la vede in Modifica,
+mentre linea, cursore e griglia si vedono spostati: con 90° di rotazione, muovere il puntatore a
+destra fa scendere la linea. Ciò che esce dal pannello rientra dal lato opposto (effetto Pacman). Il
+player lo applica (`applyShift`, attivo per default); `PuzzleBoard` lo applica solo con `applyShift`,
+così in Modifica e nelle miniature la griglia resta dritta, segnalata da un piccolo segno.
+
 ## Formato JSON
 
 ```json
@@ -114,6 +128,7 @@ colori base.
   "background": {"colors":["#eef1f5","#c9d6e8"],"angle":135},
   "palette": {"line":"#979faa","path":"#256be4","success":"#12816f"},
   "rainbow": {"elements":{"period":8},"background":{"period":12}},
+  "shift": {"x":0.5,"y":-0.25,"rotation":15},
   "width": 3,
   "height": 3,
   "symmetry": "none",
@@ -192,6 +207,14 @@ Nell'editor il pannello Aspetto mostra quel contrasto nel punto peggiore del cic
 `rainbowStyle`, `rainbowBackgroundCss`, `syncRainbowClock` (allinea più elementi animati allo stesso
 orologio), `rainbowWorstContrast`.
 
+`shift` (facoltativo) sposta e ruota la griglia solo a livello visivo, nel player (Prova nell'editor e
+Gioca): `x` e `y` in celle (positivi verso destra e verso il basso, fino a ±12), `rotation` in gradi in
+senso orario attorno al centro della griglia (normalizzata in [0, 360)). Gli zeri si omettono. Input,
+regole, solver e validazione non lo leggono: il puntatore lavora sulla griglia dritta. Il pannello resta
+fermo; ciò che ne esce rientra dal lato opposto, e con rotazioni oblique le parti rientrate possono
+sovrapporsi alla griglia. Nei puzzle sfalsati la tastiera non traccia. `hasShift(puzzle)` dice se un
+puzzle è sfalsato.
+
 `data` è un oggetto libero che l'editor conserva
 così com'è: utile per collegare il puzzle a stanze, eventi o porte.
 
@@ -221,6 +244,8 @@ elenca in `warnings`; solo dimensioni non valide o JSON malformato sono errori.
   dritto e senza mai ripercorrere un lato. Il secondo passaggio è disegnato sopra il primo.
 - Nuovo effetto **arcobaleno** (`rainbow`): i colori di simboli e sfondo ciclano durante il gioco,
   ciascuno dal proprio colore base; nell'editor restano fermi e un indicatore lo segnala.
+- Nuovo **sfalsamento** (`shift`): la griglia appare spostata e ruotata, con avvolgimento ai bordi,
+  mentre si traccia sulla griglia dritta. Tutti i puzzle stanno in un pannello quadrato.
 - Niente server: pubblicazione, login e lista online dell'originale sono stati tolti. Al loro posto
   ci sono file JSON e una raccolta locale nella demo.
 - Il tracciamento usa il puntatore in posizione assoluta invece del pointer lock, così funziona
