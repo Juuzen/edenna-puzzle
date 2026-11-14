@@ -513,3 +513,24 @@
 .ep-rb-badge__what { color: var(--ed-text); }
 .ep-rb-badge:hover { color: var(--ed-text); border-color: #dcd8cd; }
 .ep-rb-badge:focus-visible { outline: 2px solid var(--ed-focus); outline-offset: 2px; }
+
+/* ----------------------------------------------------------- sfalsamento */
+
+/* Segno: due quadrati sfalsati in inchiostro neutro (mai giallo, mai blu). */
+.ep-shift-mark { display: inline-block; flex: none; vertical-align: -1px; }
+.ep-shift-mark rect { stroke: var(--ed-muted, #67635a); stroke-width: 1.4; }
+.ep-shift-mark__back { fill: none; }
+.ep-shift-mark__front { fill: var(--ed-surface, #ffffff); }
+
+.ep-shift { display: flex; flex-direction: column; gap: 10px; }
+.ep-shift__ctl { display: flex; align-items: center; gap: 8px; }
+.ep-shift__ctl input[type='range'] { flex: 1; min-width: 0; }
+.ep-field .ep-shift__num {
+  width: 84px;
+  flex: none;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.ep-shift__unit { width: 28px; flex: none; font-size: 12px; color: var(--ed-muted); }
+.ep-shift__reset { align-self: flex-start; }

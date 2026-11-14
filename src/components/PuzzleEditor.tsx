@@ -9,6 +9,7 @@ import {
   type PuzzleBackground,
   type PuzzlePalette,
   type PuzzleRainbow,
+  type PuzzleShift,
   type RainbowLayer,
   type ColorRole,
   type ContrastLevel,
@@ -16,6 +17,9 @@ import {
   DEFAULT_BACKGROUND_ANGLE,
   RAINBOW_PERIOD_MAX,
   RAINBOW_PERIOD_MIN,
+  SHIFT_MAX,
+  hasShift,
+  parseShift,
   checkColor,
   normalizeAngle,
   normalizeHexColor,
@@ -71,6 +75,8 @@ import { backgroundCss } from './background';
 import { downloadText, slugify } from './collectionOps';
 import { rainbowLayers, rainbowWorstContrast } from './rainbow';
 import { RainbowMark } from './RainbowMarks';
+import { ShiftMark } from './ShiftMark';
+import { shiftPeriodCells } from './shift';
 
 export interface PuzzleEditorProps {
   /** Puzzle iniziale (non controllato). */
@@ -531,6 +537,88 @@ function RainbowControls({
 }
 
 const RAINBOW_LAYER_TEXT = { elements: 'elementi', background: 'sfondo' } as const;
+
+/** Cosa sposta lo sfalsamento, per badge e segni ("posizione e rotazione"). */
+function shiftText(s: PuzzleShift | undefined): string {
+  return [(s?.x || s?.y) && 'posizione', s?.rotation && 'rotazione'].filter(Boolean).join(' e ');
+}
+
+/**
+ * Sfalsamento: spostamento orizzontale e verticale (celle) e rotazione
+ * (gradi). Ogni cursore è un solo passo di annulla, come per lo sfondo.
+ */
+function ShiftControls({
+  value,
+  width,
+  height,
+  onChange,
+  onSettle,
+}: {
+  value?: PuzzleShift;
+  width: number;
+  height: number;
+  onChange: (s: PuzzleShift | undefined, continuous: boolean) => void;
+  onSettle: () => void;
+}) {
+  const settle = { onBlur: onSettle, onPointerUp: onSettle, onKeyUp: onSettle };
+  // Oltre metà periodo l'avvolgimento ripete le stesse posizioni.
+  const half = Math.floor((shiftPeriodCells(width, height) / 2) * 20) / 20;
+  const set = (key: keyof PuzzleShift, v: number, continuous: boolean) =>
+    onChange(parseShift({ ...value, [key]: v }) ?? undefined, continuous);
+  const rows = [
+    { key: 'x', label: 'Orizzontale', unit: 'celle', min: -half, max: half, step: 0.05, numMin: -SHIFT_MAX, numMax: SHIFT_MAX },
+    { key: 'y', label: 'Verticale', unit: 'celle', min: -half, max: half, step: 0.05, numMin: -SHIFT_MAX, numMax: SHIFT_MAX },
+    { key: 'rotation', label: 'Rotazione', unit: 'gradi', min: 0, max: 359, step: 1, numMin: 0, numMax: 359.9 },
+  ] as const;
+  return (
+    <div className="ep-shift">
+      {rows.map((r) => {
+        const v = value?.[r.key] ?? 0;
+        const id = `ep-shift-${r.key}`;
+        return (
+          <div key={r.key} className="ep-field">
+            <span id={id}>{r.label}</span>
+            <div className="ep-shift__ctl">
+              <input
+                type="range"
+                min={r.min}
+                max={r.max}
+                step={r.step}
+                value={v}
+                aria-labelledby={id}
+                aria-valuetext={`${v} ${r.unit}`}
+                onChange={(e) => set(r.key, +e.target.value, true)}
+                {...settle}
+              />
+              <input
+                type="number"
+                className="ep-shift__num"
+                min={r.numMin}
+                max={r.numMax}
+                step={r.step}
+                value={v}
+                aria-label={`${r.label}, in ${r.unit}`}
+                onChange={(e) => {
+                  if (e.target.value !== '' && Number.isFinite(+e.target.value)) set(r.key, +e.target.value, false);
+                }}
+              />
+              <span className="ep-shift__unit" aria-hidden>
+                {r.key === 'rotation' ? '°' : 'celle'}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      <button type="button" className="ep-btn ep-shift__reset" disabled={!value} onClick={() => onChange(undefined, false)}>
+        Azzera
+      </button>
+      <p className="ep-note">
+        Solo visivo: si traccia partendo da dove la partenza sta in Modifica. Ciò che esce dal pannello rientra dal
+        lato opposto. Si vede in Prova e in Gioca, dove la tastiera non traccia.
+      </p>
+    </div>
+  );
+}
 
 /** Piccola icona SVG per i pulsanti degli strumenti. */
 function ToolIcon({ kind, tool }: { kind: ToolKind; tool: ToolState }) {
@@ -998,12 +1086,13 @@ export function PuzzleEditor({
   /** Vero mentre si trascina un selettore dello sfondo (stesso passo di annulla). */
   const bgDragging = useRef(false);
   const setLook = (
-    patch: { background?: PuzzleBackground; palette?: PuzzlePalette; rainbow?: PuzzleRainbow },
+    patch: { background?: PuzzleBackground; palette?: PuzzlePalette; rainbow?: PuzzleRainbow; shift?: PuzzleShift },
     continuous: boolean,
   ) => {
     const next = { ...puzzle, ...patch };
     if (!next.background) delete next.background;
     if (!next.rainbow) delete next.rainbow;
+    if (!next.shift) delete next.shift;
     // Senza sfondo proprio i colori fissi non hanno senso: decide il tema.
     if (!next.palette || !next.background) delete next.palette;
     commit(next, bgDragging.current);
@@ -1015,6 +1104,9 @@ export function PuzzleEditor({
   const setRainbow = (rainbow: PuzzleRainbow | undefined, continuous: boolean) => setLook({ rainbow }, continuous);
   const rbLayers = rainbowLayers(puzzle.rainbow);
   const rbText = rbLayers.map((l) => RAINBOW_LAYER_TEXT[l]).join(' e ');
+  const setShift = (shift: PuzzleShift | undefined, continuous: boolean) => setLook({ shift }, continuous);
+  const shifted = hasShift(puzzle);
+  const shText = shiftText(puzzle.shift);
 
   /** Colori predefiniti, per i controlli di contrasto. */
   const rootRef = useRef<HTMLDivElement>(null);
@@ -1071,6 +1163,12 @@ export function PuzzleEditor({
                 <span className="ep-sr"> (arcobaleno attivo)</span>
               </>
             )}
+            {shifted && (
+              <>
+                <ShiftMark size={9} className="ep-tab__mark" />
+                <span className="ep-sr"> (griglia sfalsata)</span>
+              </>
+            )}
           </button>
         </div>
         <div id="ep-panel-side" role="tabpanel" aria-labelledby={`ep-tab-${side}`} className="ep-tabpanel">
@@ -1095,6 +1193,16 @@ export function PuzzleEditor({
                 background={puzzle.background}
                 colors={puzzle.background ? { ...themeColors, ...puzzle.palette } : themeColors}
                 onChange={setRainbow}
+                onSettle={() => (bgDragging.current = false)}
+              />
+            </section>
+            <section className="ep-group">
+              <h3 className="ep-group__title">Sfalsamento</h3>
+              <ShiftControls
+                value={puzzle.shift}
+                width={puzzle.width}
+                height={puzzle.height}
+                onChange={setShift}
                 onSettle={() => (bgDragging.current = false)}
               />
             </section>
@@ -1297,6 +1405,18 @@ export function PuzzleEditor({
               <span className="ep-rb-badge__what">{rbText}</span>
             </button>
           )}
+          {shifted && (
+            <button
+              type="button"
+              className="ep-rb-badge"
+              title={`Griglia sfalsata (${shText}). ${mode === 'edit' ? 'In Modifica resta dritta: si vede in Prova e in Gioca. ' : ''}Si traccia partendo da dove la partenza sta in Modifica. Clic per le impostazioni.`}
+              onClick={() => setSide('look')}
+            >
+              <ShiftMark size={12} />
+              Sfalsata
+              <span className="ep-rb-badge__what">{shText}</span>
+            </button>
+          )}
           <div className="ep-toolbar__spacer" />
           <div className="ep-toolbar__group">
             <button
@@ -1416,7 +1536,10 @@ export function PuzzleEditor({
           </div>
           <div className="ep-status__hint">
             {mode === 'test'
-              ? (testResult ?? 'Clic sulla partenza, poi muovi il puntatore e clicca sull’uscita. Frecce e Invio da tastiera.')
+              ? (testResult ??
+                (shifted
+                  ? 'Griglia sfalsata: clic dove la partenza sta in Modifica, poi muovi il puntatore e clicca sull’uscita.'
+                  : 'Clic sulla partenza, poi muovi il puntatore e clicca sull’uscita. Frecce e Invio da tastiera.'))
               : notice
                 ? <span className={`ep-notice ep-notice--${notice.tone}`}>{notice.text}</span>
                 : (TOOL_GROUPS.flatMap((g) => g.tools).find((t) => t.kind === tool.kind)?.hint ?? '')}

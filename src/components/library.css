@@ -430,16 +430,25 @@
   }
 }
 
-/* Miniatura di un puzzle con arcobaleno: segno statico nell'angolo. */
+/* Miniatura con arcobaleno o sfalsamento: segni statici nell'angolo. */
 .ep-library__thumbwrap {
   position: relative;
   flex: none;
   display: inline-flex;
 }
-.ep-library__thumbwrap .ep-rainbow-mark {
+.ep-library__marks {
   position: absolute;
   right: -3px;
   bottom: -3px;
+  display: flex;
+  gap: 2px;
+}
+.ep-library__marks .ep-rainbow-mark {
   border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--ed-surface);
+}
+.ep-library__marks .ep-shift-mark {
+  border-radius: 2px;
+  background: var(--ed-surface);
   box-shadow: 0 0 0 1.5px var(--ed-surface);
 }

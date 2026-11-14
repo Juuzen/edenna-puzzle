@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ParseResult, PuzzleCollection } from '../engine';
-import { PuzzleBoard } from './PuzzleBoard';
+import { PuzzleThumb } from './PuzzleThumb';
 import { type ImportDestination, type ImportResult, applyImport, pickPuzzles } from './collectionOps';
 
 /** Cosa si sta importando: i puzzle letti e i metadati della raccolta di origine. */
@@ -117,7 +117,7 @@ export function ImportDialog({ source, collections, target, onConfirm, onCancel 
               <li key={i}>
                 <label className={checked.has(i) ? 'is-on' : ''}>
                   <input type="checkbox" checked={checked.has(i)} onChange={() => toggle(i)} />
-                  <PuzzleBoard puzzle={p} className="ep-library__thumb" aria-hidden label="" />
+                  <PuzzleThumb puzzle={p} />
                   <span className="ep-library__text">
                     <span className="ep-library__title">{p.title || `Puzzle ${i + 1}`}</span>
                     <span className="ep-library__meta">

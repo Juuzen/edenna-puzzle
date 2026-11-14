@@ -7,6 +7,7 @@ import {
   allPuzzleIds,
   backgroundCss,
   ensureIds,
+  hasShift,
   parseCollection,
   parsePuzzle,
   parsePuzzleSet,
@@ -217,7 +218,11 @@ export function App() {
                     <button onClick={() => playNext(1)}>Prossimo ›</button>
                   </>
                 ) : (
-                  <span>Clic sul cerchio, segui con il puntatore, clic sull’uscita. Oppure trascina, o usa frecce e Invio.</span>
+                  <span>
+                    {hasShift(current)
+                      ? 'Clic sul cerchio, segui con il puntatore, clic sull’uscita. Oppure trascina.'
+                      : 'Clic sul cerchio, segui con il puntatore, clic sull’uscita. Oppure trascina, o usa frecce e Invio.'}
+                  </span>
                 )}
               </div>
             </div>

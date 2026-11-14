@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import {
   type Puzzle,
   type PuzzleCollection,
@@ -7,9 +7,7 @@ import {
   parseCollection,
   serializeCollection,
 } from '../engine';
-import { PuzzleBoard } from './PuzzleBoard';
-import { rainbowLayers } from './rainbow';
-import { RainbowMark } from './RainbowMarks';
+import { PuzzleThumb } from './PuzzleThumb';
 import { ImportDialog, importSummary, type ImportSource } from './ImportDialog';
 import {
   downloadText,
@@ -40,17 +38,6 @@ export interface PuzzleLibraryProps {
   isSolved?: (p: Puzzle, index: number) => boolean;
   className?: string;
 }
-
-const Thumb = memo(function Thumb({ puzzle }: { puzzle: Puzzle }) {
-  const board = <PuzzleBoard puzzle={puzzle} className="ep-library__thumb" aria-hidden label="" />;
-  if (!rainbowLayers(puzzle.rainbow).length) return board;
-  return (
-    <span className="ep-library__thumbwrap" title="Arcobaleno">
-      {board}
-      <RainbowMark size={12} />
-    </span>
-  );
-});
 
 /**
  * Gestione delle raccolte di puzzle: più raccolte con nome, lista con
@@ -402,7 +389,7 @@ export function PuzzleLibrary({
               aria-pressed={selecting ? selected.has(i) : undefined}
             >
               {selecting && <input type="checkbox" tabIndex={-1} readOnly checked={selected.has(i)} aria-hidden />}
-              <Thumb puzzle={p} />
+              <PuzzleThumb puzzle={p} />
               <span className="ep-library__text">
                 <span className="ep-library__title">{p.title || `Puzzle ${i + 1}`}</span>
                 <span className="ep-library__meta">
