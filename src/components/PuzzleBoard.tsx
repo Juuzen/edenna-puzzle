@@ -9,11 +9,12 @@ import {
   type SymbolRef,
   DIRECTIONS,
   endDirection,
+  hasShift,
   indexPuzzle,
   reflectPoint,
   symbolRefKey,
 } from '../engine';
-import { boardFrame } from './shift';
+import { boardFrame, shiftGeometry, shiftTransform, wrapTiles } from './shift';
 import { Bridge, CellSymbol, Hexagon, LINE, OVERPASS_BORDER, START_R, U, maxPolyominoSize } from './Symbols';
 import { EXIT_LENGTH, type TraceState, bridgeOverpasses, headPosition, mirrorTrace } from './tracing';
 
@@ -43,7 +44,16 @@ export interface PuzzleBoardProps extends Omit<SVGProps<SVGSVGElement>, 'ref'> {
    * il disegno resta statico con i colori base (editor, miniature).
    */
   animateRainbow?: boolean;
+  /**
+   * Disegna la griglia spostata e ruotata se il puzzle ha `shift` (prova e
+   * gioco). È solo visivo: le coordinate del puntatore restano quelle della
+   * griglia dritta. Senza, la griglia è dritta (editor, miniature).
+   */
+  applyShift?: boolean;
 }
+
+/** Raggio degli angoli del pannello. */
+const PANEL_RADIUS = 18;
 
 const toSvg = (c: Coord) => `${c.x * U},${c.y * U}`;
 const CURSOR_R = 22;
@@ -73,6 +83,7 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
     pointerIdle,
     label,
     animateRainbow,
+    applyShift,
     className,
     ...rest
   },
@@ -81,7 +92,9 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
   const idx = indexPuzzle(puzzle);
   const { width: w, height: h } = puzzle;
   // `useId` contiene ":" che non va bene dentro `url(#…)`.
-  const gradientId = `ep-bg${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const gradientId = `ep-bg${uid}`;
+  const clipId = `ep-clip${uid}`;
   const errSet = useMemo(() => new Set((errors ?? []).map(symbolRefKey)), [errors]);
   const elimSet = useMemo(() => new Set((eliminated ?? []).map(symbolRefKey)), [eliminated]);
   const maxPoly = useMemo(() => maxPolyominoSize(puzzle.cells), [puzzle.cells]);
@@ -199,33 +212,15 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
   const style =
     paletteVars || rainbow ? { ...paletteVars, ...rainbow?.style, ...rest.style } : rest.style;
   const classes = ['ep-board', `ep-board--${status}`, rainbow?.className, className].filter(Boolean).join(' ');
-  return (
-    <svg
-      ref={setRef}
-      viewBox={vb}
-      className={classes}
-      role="img"
-      aria-label={label ?? puzzle.title ?? 'Puzzle'}
-      {...rest}
-      style={style}
-    >
-      {gradient && (
-        <defs>
-          <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" {...gradient.line}>
-            <stop offset="0" style={{ stopColor: rbBackground ? 'var(--ep-bg-a)' : gradient.from }} />
-            <stop offset="1" style={{ stopColor: rbBackground ? 'var(--ep-bg-b)' : gradient.to }} />
-          </linearGradient>
-        </defs>
-      )}
-      <rect
-        className="ep-panel"
-        x={panel.x}
-        y={panel.y}
-        width={panel.w}
-        height={panel.h}
-        rx={18}
-        style={panelFill}
-      />
+  // Sfalsamento (solo visivo, solo se richiesto): copie trasformate e
+  // ritagliate dal pannello, così ciò che esce da un lato rientra dall'altro.
+  const shifted = !!applyShift && hasShift(puzzle);
+  const geo = shifted ? shiftGeometry(frame, puzzle.shift) : null;
+  const tiles = geo ? wrapTiles(frame, geo, w, h) : null;
+  const panelRect = { x: panel.x, y: panel.y, width: panel.w, height: panel.h, rx: PANEL_RADIUS };
+
+  const content = (
+    <>
       <g className="ep-grid" strokeWidth={LINE} strokeLinecap="round" fill="none">
         {lines}
         {ends}
@@ -316,6 +311,51 @@ export const PuzzleBoard = forwardRef<SVGSVGElement, PuzzleBoardProps>(function 
         </g>
       )}
       {overlay}
+    </>
+  );
+
+  return (
+    <svg
+      ref={setRef}
+      viewBox={vb}
+      className={classes}
+      role="img"
+      aria-label={label ?? puzzle.title ?? 'Puzzle'}
+      {...(shifted ? { 'aria-description': 'Griglia sfalsata: si gioca con mouse o touch.' } : {})}
+      {...rest}
+      style={style}
+    >
+      {(gradient || tiles) && (
+        <defs>
+          {gradient && (
+            <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" {...gradient.line}>
+              <stop offset="0" style={{ stopColor: rbBackground ? 'var(--ep-bg-a)' : gradient.from }} />
+              <stop offset="1" style={{ stopColor: rbBackground ? 'var(--ep-bg-b)' : gradient.to }} />
+            </linearGradient>
+          )}
+          {tiles && (
+            <clipPath id={clipId}>
+              <rect {...panelRect} />
+            </clipPath>
+          )}
+        </defs>
+      )}
+      <rect className="ep-panel" {...panelRect} style={panelFill} />
+      {geo && tiles ? (
+        <>
+          <g className="ep-shift" clipPath={`url(#${clipId})`}>
+            {tiles.map(([i, j]) => (
+              <g key={`${i},${j}`} transform={shiftTransform(frame, geo, i, j)}>
+                {content}
+              </g>
+            ))}
+          </g>
+          {/* Bordo sopra le copie: i tagli dell'avvolgimento coincidono con il bordo. */}
+          <rect className="ep-panel ep-panel--edge" {...panelRect} style={{ fill: 'none' }} pointerEvents="none" />
+        </>
+      ) : (
+        content
+      )}
     </svg>
   );
 });
